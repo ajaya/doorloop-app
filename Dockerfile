@@ -21,8 +21,8 @@ WORKDIR /app
 FROM base AS gems
 
 # Copy only the manifest files first for layer caching
-COPY doorloop-mcp.gemspec ./
-COPY lib/doorloop_mcp/version.rb lib/doorloop_mcp/version.rb
+COPY doorloop-app.gemspec ./
+COPY lib/doorloop_app/version.rb lib/doorloop_app/version.rb
 COPY Gemfile Gemfile.lock* ./
 
 RUN bundle config set --local without "development" \

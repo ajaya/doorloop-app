@@ -5,6 +5,6 @@ require "bundler/setup"
 require "dotenv"
 env = ENV.fetch("DOORLOOP_ENV", "development")
 Dotenv.load(".env.#{env}.local", ".env.local", ".env.#{env}", ".env")
-require "doorloop_mcp"
+require "doorloop_app"
 
-DoorloopMcp::CLI::Main.start(ARGV)
+DoorLoopApp::CLI::Main.start(ARGV)

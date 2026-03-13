@@ -5,6 +5,7 @@
 *.gem
 .env
 .env.local
+.mcp.json
 Gemfile.lock
 /.doorloop-mcp/
 /node_modules/

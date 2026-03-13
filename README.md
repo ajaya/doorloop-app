@@ -1,4 +1,4 @@
-# doorloop-mcp
+# doorloop-app
 
 An MCP (Model Context Protocol) server for [DoorLoop](https://www.doorloop.com/) property management. Allows AI assistants (Claude, etc.) to interact with DoorLoop via browser automation and direct API calls.
 
@@ -91,7 +91,7 @@ The image bundles Ruby 4.0, Node.js 22, Chromium, and all Playwright dependencie
   "mcpServers": {
     "doorloop": {
       "command": "docker",
-      "args": ["compose", "-f", "/path/to/doorloop-mcp/docker-compose.yml", "run", "--rm", "mcp"]
+      "args": ["compose", "-f", "/path/to/doorloop-app/docker-compose.yml", "run", "--rm", "mcp"]
     }
   }
 }
@@ -126,7 +126,7 @@ Add to your MCP config:
 {
   "mcpServers": {
     "doorloop": {
-      "command": "/path/to/doorloop-mcp/bin/doorloop",
+      "command": "/path/to/doorloop-app/bin/doorloop",
       "args": ["server"]
     }
   }
@@ -139,7 +139,7 @@ Add to your MCP config:
 bin/doorloop version              # Print version
 bin/doorloop server               # Start MCP stdio server
 bin/doorloop login                # Interactive login
-bin/doorloop console              # IRB/Pry console with DoorloopMcp loaded
+bin/doorloop console              # IRB/Pry console with DoorLoopApp loaded
 bin/doorloop properties list      # List all properties
 bin/doorloop units list           # List units
 bin/doorloop tenants list         # List all tenants
@@ -151,7 +151,6 @@ bin/doorloop payment receive \
   --amount 4500 \
   --date 2026-03-01 \
   --method EFT \
-  --date today \
   --memo "March rent"             # Fill payment form (prompts to confirm after Save)
 ```
 
@@ -159,23 +158,23 @@ bin/doorloop payment receive \
 
 ```ruby
 # Load and authenticate
-session = DoorloopMcp.session
+session = DoorLoopApp.session
 session.start
 session.ensure_authenticated!
 
 # Fetch and cache data
-DoorloopMcp.executor.call(:list_properties)
-DoorloopMcp.executor.call(:list_tenants)
-DoorloopMcp.executor.call(:list_leases)
+DoorLoopApp.executor.call(:list_properties)
+DoorLoopApp.executor.call(:list_tenants)
+DoorLoopApp.executor.call(:list_leases)
 
 # Query cached data
-store = DoorloopMcp.store
+store = DoorLoopApp.store
 store.all_tenants
 store.find_tenant_by_name("Prayag")
 store.active_leases
 
 # Fill a payment form (does not submit)
-payment_page = DoorloopMcp::Browser::Pages::PaymentPage.new(session)
+payment_page = DoorLoopApp::Browser::Pages::PaymentPage.new(session)
 payment_page.fill_payment(
   tenant_name: "Prayag Bansal",
   amount: "1200",
@@ -300,8 +299,10 @@ sequenceDiagram
 
 ```
 bin/doorloop              CLI entry point (Thor)
-lib/doorloop_mcp/
-  mcp/                    MCP server + 9 tools
+lib/doorloop_app/
+  server.rb               MCP server setup
+  tool.rb                 Base tool class
+  tools/                  9 MCP tools
   browser/                Playwright session + page objects
     pages/                PropertiesPage, UnitsPage, TenantsPage,
                           LeasesPage, LeaseTransactionsPage, PaymentPage
@@ -325,3 +326,7 @@ bundle exec rake test
 ```
 
 Tests use Minitest + Mocha with mock browser sessions. No live DoorLoop connection required.
+
+## License
+
+MIT

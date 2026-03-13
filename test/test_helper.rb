@@ -3,7 +3,7 @@
 require "bundler/setup"
 require "minitest/autorun"
 require "mocha/minitest"
-require "doorloop_mcp"
+require "doorloop_app"
 
 # Use in-memory DB for tests
 ENV["DOORLOOP_DB_PATH"] ||= ":memory:"

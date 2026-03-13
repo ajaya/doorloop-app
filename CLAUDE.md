@@ -1,8 +1,8 @@
-# CLAUDE.md — doorloop-mcp
+# CLAUDE.md — doorloop-app
 
 ## What This Is
 Ruby MCP server for DoorLoop property management via headless Chrome (Playwright).
-Exposes 8 MCP tools to AI assistants (Claude, etc.) to read and interact with DoorLoop.
+Exposes 9 MCP tools to AI assistants (Claude, etc.) to read and interact with DoorLoop.
 
 Target account: `https://bansals.app.doorloop.com`
 
@@ -15,7 +15,7 @@ bundle install
 bundle exec rake test                        # Run full suite
 bundle exec ruby -Itest test/path_test.rb    # Single file
 bundle exec ruby -Itest test/path_test.rb -n test_method_name  # Single test
-bin/doorloop console                         # IRB with DoorloopMcp loaded
+bin/doorloop console                         # IRB with DoorLoopApp loaded
 bin/doorloop server                          # Start MCP stdio server
 DOORLOOP_HEADLESS=false bin/doorloop console # Visible browser
 ```
@@ -50,9 +50,9 @@ docker compose run --rm mcp      # start MCP stdio server
 
 ### Layers (top to bottom)
 ```
-MCP Tools (lib/doorloop_mcp/mcp/tools/)
+MCP Tools (lib/doorloop_app/tools/)
   ↓
-Data::Executor (lib/doorloop_mcp/data/executor.rb)
+Data::Executor (lib/doorloop_app/data/executor.rb)
   Layer 1: Api::Endpoints/* — direct HTTP (requires discovered registry token)
   Layer 2: Browser::Pages/* — Playwright API interception
   Layer 3: Vision::Client — Claude AI text extraction (fallback)
@@ -60,12 +60,12 @@ Data::Executor (lib/doorloop_mcp/data/executor.rb)
 Store → Models (SQLite via Sequel ORM)
 ```
 
-### Key Singletons (lib/doorloop_mcp.rb)
+### Key Singletons (lib/doorloop_app.rb)
 ```ruby
-DoorloopMcp.session      # Browser::Session (Playwright)
-DoorloopMcp.store        # Store → SQLite models
-DoorloopMcp.executor     # Data::Executor (3-layer)
-DoorloopMcp.configuration
+DoorLoopApp.session      # Browser::Session (Playwright)
+DoorLoopApp.store        # Store → SQLite models
+DoorLoopApp.executor     # Data::Executor (3-layer)
+DoorLoopApp.configuration
 ```
 
 ---
@@ -141,7 +141,7 @@ All models follow the `JsonBacked` pattern:
 | Tenant | `:tenants` | `"id"` | name, first_name, last_name, email, phone, property_id, lease_id, unit_ids, status, balance_due |
 | LeaseTransaction | `:lease_transactions` | `"id"` | lease_id, property_id, txn_type (`"type"`), amount, date, description, status |
 
-**Important**: `Sequel::Model.require_valid_table = false` is set in `lib/doorloop_mcp.rb` so models
+**Important**: `Sequel::Model.require_valid_table = false` is set in `lib/doorloop_app.rb` so models
 can be autoloaded by Zeitwerk before `setup!(db)` is called.
 
 ### DB Path
@@ -151,7 +151,7 @@ Default: `~/.doorloop-mcp/doorloop.sqlite3`
 
 ## Notifications
 
-`lib/doorloop_mcp/notifications/payment_confirmation.rb` — sends email after payment is confirmed via CLI.
+`lib/doorloop_app/notifications/payment_confirmation.rb` — sends email after payment is confirmed via CLI.
 
 - Triggered by `bin/doorloop payment receive` after user clicks Save and presses Enter
 - Uses `AgentMail::Client` (same AgentMail integration as 2FA — no separate SMTP config)
@@ -170,7 +170,7 @@ Default: `~/.doorloop-mcp/doorloop.sqlite3`
 | `version` | Print version |
 | `server` | Start MCP stdio server |
 | `login` | Interactive login (saves Chrome session) |
-| `console` | IRB with DoorloopMcp singletons loaded |
+| `console` | IRB with DoorLoopApp singletons loaded |
 | `properties list` | List all properties |
 | `units list` | List units (optionally filtered) |
 | `tenants list` | List all tenants |
@@ -191,7 +191,7 @@ Default: `~/.doorloop-mcp/doorloop.sqlite3`
 
 ## Tenant Matching (LLM Fallback)
 
-`lib/doorloop_mcp/llm/tenant_matcher.rb` — used by `PaymentPage#find_tenant` when DB search fails.
+`lib/doorloop_app/llm/tenant_matcher.rb` — used by `PaymentPage#find_tenant` when DB search fails.
 
 - Model: `claude-haiku-4-5-20251001` (default), overridable via `DOORLOOP_LLM_MODEL`
 - Uses `ruby_llm` gem → `RubyLLM.chat(model:).ask(prompt)`

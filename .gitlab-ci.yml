@@ -1,0 +1,21 @@
+image: ruby:3.4
+
+stages:
+  - test
+
+variables:
+  BUNDLE_JOBS: "$(nproc)"
+  BUNDLE_RETRY: "3"
+
+before_script:
+  - gem install bundler
+  - bundle install --jobs "$BUNDLE_JOBS" --retry "$BUNDLE_RETRY"
+
+test:
+  stage: test
+  script:
+    - bundle exec rake test
+  cache:
+    key: gems
+    paths:
+      - vendor/bundle
