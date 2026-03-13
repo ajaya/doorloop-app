@@ -1,0 +1,30 @@
+services:
+  # MCP stdio server — used by Claude Desktop / MCP clients
+  # docker compose run --rm mcp
+  mcp:
+    build: .
+    image: doorloop-mcp
+    stdin_open: true
+    tty: false
+    environment:
+      DOORLOOP_HEADLESS: "true"
+      PLAYWRIGHT_CHROMIUM_ARGS: "--no-sandbox --disable-setuid-sandbox"
+    volumes:
+      - ~/.doorloop-mcp:/data
+      - ./.env.local:/app/.env.local:ro
+    command: ["server"]
+
+  # Interactive login (run once to create/refresh Chrome session)
+  # docker compose run --rm login
+  login:
+    build: .
+    image: doorloop-mcp
+    stdin_open: true
+    tty: true
+    environment:
+      DOORLOOP_HEADLESS: "true"
+      PLAYWRIGHT_CHROMIUM_ARGS: "--no-sandbox --disable-setuid-sandbox"
+    volumes:
+      - ~/.doorloop-mcp:/data
+      - ./.env.local:/app/.env.local:ro
+    command: ["login"]

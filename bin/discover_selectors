@@ -1,0 +1,248 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Usage: DOORLOOP_HEADLESS=false bin/discover_selectors [page]
+# Pages: properties, leases, tenants
+#
+# This script logs in, navigates to the specified page, and dumps
+# the DOM structure to help discover real CSS selectors.
+
+require "bundler/setup"
+require "dotenv"
+Dotenv.load(".env.local", ".env")
+require "uri"
+
+require "doorloop_mcp"
+
+page_name = ARGV[0] || "properties"
+
+# Force UTF-8 encoding on strings from Playwright
+def safe_text(str)
+  return "" if str.nil?
+  str.encode("UTF-8", invalid: :replace, undef: :replace, replace: "?")
+end
+
+config = DoorloopMcp.configuration
+config.validate!
+
+session = DoorloopMcp::Browser::Session.new
+
+begin
+  session.start
+  session.ensure_authenticated!
+
+  page = session.page
+
+  # Derive base URL from the browser's current URL after login
+  # (more reliable than config.url which may point to login/marketing site)
+  current = URI.parse(page.url)
+  base_url = "#{current.scheme}://#{current.host}"
+  $stderr.puts "Base URL (from browser): #{base_url}"
+
+  target = case page_name
+           when "properties" then "properties"
+           when "leases", "leasing" then "leasing"
+           when "tenants" then "tenants"
+           else page_name
+           end
+
+  $stderr.puts "\n=== Navigating to #{target} ==="
+  page.goto("#{base_url}/#{target}", waitUntil: "domcontentloaded", timeout: 30_000)
+
+  # Wait for SPA to settle
+  begin
+    page.wait_for_load_state(state: "networkidle", timeout: 15_000)
+  rescue Playwright::TimeoutError
+    $stderr.puts "Network idle timeout (SPA may never idle), continuing..."
+  end
+
+  sleep 3 # Extra time for React rendering
+
+  $stderr.puts "Current URL: #{page.url}"
+  $stderr.puts ""
+
+  # Dump the page title
+  title = page.title
+  $stderr.puts "Page title: #{title}"
+  $stderr.puts ""
+
+  # Look for tables
+  $stderr.puts "=== Tables found ==="
+  tables = page.query_selector_all("table")
+  $stderr.puts "Found #{tables.length} table(s)"
+  tables.each_with_index do |table, i|
+    $stderr.puts "\n--- Table #{i} ---"
+    # Get table headers
+    headers = table.query_selector_all("th")
+    header_texts = headers.map { |h| safe_text(h.text_content).strip }
+    $stderr.puts "Headers: #{header_texts.inspect}"
+
+    # Get first few rows
+    rows = table.query_selector_all("tbody tr")
+    $stderr.puts "Row count: #{rows.length}"
+    rows.first(3).each_with_index do |row, ri|
+      cells = row.query_selector_all("td")
+      cell_texts = cells.map { |c| safe_text(c.text_content).strip.slice(0, 50) }
+      $stderr.puts "  Row #{ri}: #{cell_texts.inspect}"
+
+      # Check for data-cy attributes on the row
+      row_html = safe_text(row.evaluate("el => el.outerHTML.slice(0, 200)"))
+      $stderr.puts "  Row HTML prefix: #{row_html}"
+    end
+  end
+
+  # Look for data-cy attributes
+  $stderr.puts "\n=== Elements with data-cy attributes ==="
+  cy_elements = page.query_selector_all("[data-cy]")
+  $stderr.puts "Found #{cy_elements.length} element(s) with data-cy"
+  cy_elements.first(30).each do |el|
+    cy_val = safe_text(el.evaluate("el => el.getAttribute('data-cy')"))
+    tag = safe_text(el.evaluate("el => el.tagName.toLowerCase()"))
+    text = safe_text(el.text_content).strip.slice(0, 40)
+    $stderr.puts "  <#{tag} data-cy=\"#{cy_val}\"> #{text}"
+  end
+
+  # Look for data-testid attributes
+  $stderr.puts "\n=== Elements with data-testid attributes ==="
+  testid_elements = page.query_selector_all("[data-testid]")
+  $stderr.puts "Found #{testid_elements.length} element(s) with data-testid"
+  testid_elements.first(20).each do |el|
+    testid_val = safe_text(el.evaluate("el => el.getAttribute('data-testid')"))
+    tag = safe_text(el.evaluate("el => el.tagName.toLowerCase()"))
+    text = safe_text(el.text_content).strip.slice(0, 40)
+    $stderr.puts "  <#{tag} data-testid=\"#{testid_val}\"> #{text}"
+  end
+
+  # Look for role attributes (MUI uses these)
+  $stderr.puts "\n=== Elements with role='row' ==="
+  role_rows = page.query_selector_all("[role='row']")
+  $stderr.puts "Found #{role_rows.length} element(s) with role='row'"
+  role_rows.first(5).each_with_index do |row, i|
+    cells = row.query_selector_all("[role='cell'], [role='gridcell'], td")
+    cell_texts = cells.map { |c| safe_text(c.text_content).strip.slice(0, 50) }
+    $stderr.puts "  Row #{i}: #{cell_texts.inspect}"
+    row_html = safe_text(row.evaluate("el => el.outerHTML.slice(0, 300)"))
+    $stderr.puts "  HTML: #{row_html}"
+  end
+
+  # Look for MUI grid/list patterns
+  $stderr.puts "\n=== MUI DataGrid or similar ==="
+  grids = page.query_selector_all("[role='grid'], [role='treegrid'], .MuiDataGrid-root, .MuiTable-root")
+  $stderr.puts "Found #{grids.length} grid(s)"
+  grids.each_with_index do |grid, i|
+    grid_html = safe_text(grid.evaluate("el => el.outerHTML.slice(0, 500)"))
+    $stderr.puts "  Grid #{i} HTML prefix: #{grid_html}"
+  end
+
+  # Dump ALL data-cy elements (beyond the first 30)
+  $stderr.puts "\n=== ALL data-cy values ==="
+  all_cy_values = page.evaluate("() => {
+    const els = document.querySelectorAll('[data-cy]');
+    return Array.from(els).map(el => ({
+      cy: el.getAttribute('data-cy'),
+      tag: el.tagName.toLowerCase(),
+      text: (el.textContent || '').trim().slice(0, 60),
+      href: el.getAttribute('href') || '',
+      childCount: el.children.length,
+      className: (el.className || '').toString().slice(0, 80)
+    }));
+  }")
+  all_cy_values.each do |el|
+    $stderr.puts "  <#{el['tag']} data-cy=\"#{el['cy']}\" href=\"#{el['href']}\"> #{safe_text(el['text'].to_s).slice(0, 50)} [#{el['childCount']} children]"
+  end
+
+  # Look for links containing /properties/ (property detail links)
+  $stderr.puts "\n=== Links to property pages ==="
+  prop_links = page.evaluate("() => {
+    const links = document.querySelectorAll('a[href*=\"/properties/\"]');
+    return Array.from(links).map(a => ({
+      href: a.getAttribute('href'),
+      text: (a.textContent || '').trim().slice(0, 80),
+      parentCy: a.closest('[data-cy]')?.getAttribute('data-cy') || '',
+      parentTag: a.parentElement?.tagName?.toLowerCase() || ''
+    }));
+  }")
+  prop_links.each do |link|
+    $stderr.puts "  <a href=\"#{link['href']}\"> #{safe_text(link['text'].to_s).slice(0, 60)} (parent: #{link['parentTag']}, cy: #{link['parentCy']})"
+  end
+
+  # Dump the body's direct child structure to find content area
+  $stderr.puts "\n=== Top-level DOM structure ==="
+  structure = page.evaluate("() => {
+    function describeEl(el, depth) {
+      if (depth > 4) return '';
+      const indent = '  '.repeat(depth);
+      const tag = el.tagName?.toLowerCase() || 'text';
+      const id = el.id ? '#' + el.id : '';
+      const cy = el.getAttribute?.('data-cy') || '';
+      const cls = (el.className || '').toString().split(' ').filter(c => c && !c.startsWith('css-')).slice(0, 3).join('.');
+      const role = el.getAttribute?.('role') || '';
+      const childCount = el.children?.length || 0;
+      let desc = indent + '<' + tag + id;
+      if (cls) desc += '.' + cls;
+      if (cy) desc += ' data-cy=\"' + cy + '\"';
+      if (role) desc += ' role=\"' + role + '\"';
+      desc += '> (' + childCount + ' children)';
+      let result = desc + '\\n';
+      if (childCount > 0 && childCount < 20) {
+        for (const child of el.children) {
+          result += describeEl(child, depth + 1);
+        }
+      }
+      return result;
+    }
+    const root = document.getElementById('root');
+    if (root) return describeEl(root, 0);
+    return describeEl(document.body, 0);
+  }")
+  $stderr.puts safe_text(structure)
+
+  # Deep-dive into DLUI-ListItem structure
+  $stderr.puts "\n=== DLUI-ListItem detailed structure ==="
+  items_detail = page.evaluate("() => {
+    const items = document.querySelectorAll('[data-cy=\"DLUI-ListItem\"]');
+    return Array.from(items).slice(0, 3).map((item, idx) => {
+      // Get the full inner HTML structure
+      const html = item.outerHTML.slice(0, 2000);
+      // Get all text nodes and their structure
+      const texts = [];
+      const walk = (el, depth) => {
+        if (depth > 8) return;
+        const indent = '  '.repeat(depth);
+        const tag = el.tagName?.toLowerCase() || 'text';
+        const cls = (el.className || '').toString().split(' ').filter(c => c && !c.startsWith('css-') && !c.startsWith('jss')).slice(0, 3).join('.');
+        const cy = el.getAttribute?.('data-cy') || '';
+        const text = el.childNodes.length === 1 && el.childNodes[0].nodeType === 3 ? el.textContent.trim() : '';
+        const href = el.getAttribute?.('href') || '';
+        let desc = indent + '<' + tag;
+        if (cls) desc += '.' + cls;
+        if (cy) desc += ' data-cy=\"' + cy + '\"';
+        if (href) desc += ' href=\"' + href + '\"';
+        desc += '>';
+        if (text) desc += ' ' + text;
+        texts.push(desc);
+        for (const child of (el.children || [])) {
+          walk(child, depth + 1);
+        }
+      };
+      walk(item, 0);
+      return { index: idx, structure: texts.join('\\n'), html: html };
+    });
+  }")
+  items_detail.each do |item|
+    $stderr.puts "\n--- ListItem #{item['index']} ---"
+    $stderr.puts safe_text(item['structure'])
+    $stderr.puts "\n  HTML:"
+    $stderr.puts safe_text(item['html'])[0..1500]
+  end
+
+  if ENV["DOORLOOP_HEADLESS"] == "false"
+    $stderr.puts "\n\nBrowser is open. Press Enter to close..."
+    $stdin.gets
+  end
+rescue => e
+  $stderr.puts "Error: #{e.message}"
+  $stderr.puts e.backtrace.first(5).join("\n")
+ensure
+  session.stop
+end

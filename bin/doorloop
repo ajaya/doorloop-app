@@ -1,0 +1,10 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "bundler/setup"
+require "dotenv"
+env = ENV.fetch("DOORLOOP_ENV", "development")
+Dotenv.load(".env.#{env}.local", ".env.local", ".env.#{env}", ".env")
+require "doorloop_mcp"
+
+DoorloopMcp::CLI::Main.start(ARGV)

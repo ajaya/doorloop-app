@@ -1,0 +1,13 @@
+.git
+.bundle
+vendor/bundle
+node_modules
+tmp
+pkg
+*.gem
+.env
+.env.local
+.env.*.local
+/.doorloop-mcp/
+.ruby-lsp
+test
