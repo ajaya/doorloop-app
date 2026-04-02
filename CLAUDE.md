@@ -16,7 +16,9 @@ bundle exec rake test                        # Run full suite
 bundle exec ruby -Itest test/path_test.rb    # Single file
 bundle exec ruby -Itest test/path_test.rb -n test_method_name  # Single test
 bin/doorloop console                         # IRB with DoorLoopApp loaded
-bin/doorloop server                          # Start MCP stdio server
+bin/doorloop server                          # Start MCP server (stdio)
+bin/doorloop server --http                   # Start MCP server (HTTP on port 9293)
+bin/doorloop server --http --port 8080       # Custom HTTP port
 DOORLOOP_HEADLESS=false bin/doorloop console # Visible browser
 ```
 
@@ -66,7 +68,12 @@ DoorLoopApp.session      # Browser::Session (Playwright)
 DoorLoopApp.store        # Store → SQLite models
 DoorLoopApp.executor     # Data::Executor (3-layer)
 DoorLoopApp.configuration
+DoorLoopApp.eager_load!  # Zeitwerk eager load (called by entry points)
 ```
+
+### MCP Transport
+
+`Server.run` supports two transports: **stdio** (default, JSON-RPC over stdin/stdout) and **HTTP** (`--http` flag, StreamableHTTPTransport via Rack/WEBrick on `/mcp`, default port 9293).
 
 ---
 

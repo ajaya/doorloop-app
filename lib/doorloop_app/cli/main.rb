@@ -8,14 +8,17 @@ module DoorLoopApp
         say "doorloop-mcp v#{DoorLoopApp::VERSION}"
       end
 
-      desc "server", "Start the MCP server (stdio transport)"
+      desc "server", "Start the MCP server (stdio by default, --http for HTTP)"
       long_desc <<~DESC
-        Starts the MCP stdio server for use with Claude Desktop or other MCP clients.
-        All JSON-RPC communication happens on stdout; logs go to stderr.
+        Starts the MCP server for use with Claude Desktop or other MCP clients.
+        Default transport is stdio (JSON-RPC on stdin/stdout); use --http for HTTP.
+        All logs go to stderr.
       DESC
+      method_option :http, type: :boolean, default: false, desc: "Listen on HTTP instead of stdio"
+      method_option :port, type: :numeric, default: DoorLoopApp::Server::DEFAULT_HTTP_PORT,
+        desc: "HTTP port (default: #{DoorLoopApp::Server::DEFAULT_HTTP_PORT})"
       def server
-        CLI::Config.print!
-        Server.run
+        Server.run(http: options[:http], port: options[:port])
       end
 
       desc "login", "Login to DoorLoop (saves session to Chrome profile)"

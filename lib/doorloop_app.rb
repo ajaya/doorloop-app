@@ -19,6 +19,10 @@ module DoorLoopApp
       end
     end
 
+    def eager_load!
+      loader.eager_load
+    end
+
     def configuration
       @configuration ||= Configuration.new
     end

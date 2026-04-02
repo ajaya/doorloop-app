@@ -2,8 +2,13 @@
 
 require "bundler/setup"
 require "minitest/autorun"
+require "minitest/reporters"
 require "mocha/minitest"
+
+Minitest::Reporters.use! Minitest::Reporters::SpecReporter.new
+
 require "doorloop_app"
+DoorLoopApp.eager_load!
 
 # Use in-memory DB for tests
 ENV["DOORLOOP_DB_PATH"] ||= ":memory:"

@@ -4,6 +4,8 @@ require "mcp"
 
 module DoorLoopApp
   module Server
+    DEFAULT_HTTP_PORT = 9293
+
     TOOL_CLASSES = [
       -> { Tools::LoginTool },
       -> { Tools::Submit2faTool },
@@ -54,20 +56,97 @@ module DoorLoopApp
         version: DoorLoopApp::VERSION,
         tools: all_tools,
         server_context: {
-          session:      session,
-          executor:     executor,
-          store:        store,
-          service:      service,
-          token_store:  token_store
+          session:,
+          executor:,
+          store:,
+          service:,
+          token_store:
         }
       )
     end
 
-    def self.run
+    def self.run(http: false, port: DEFAULT_HTTP_PORT)
       server = build
-      $stderr.puts "Starting DoorLoop MCP server v#{DoorLoopApp::VERSION}..."
+      print_banner(server, http:, port:)
+
+      if http
+        start_http(server, port)
+      else
+        start_stdio(server)
+      end
+    end
+
+    def self.start_stdio(server)
       transport = ::MCP::Server::Transports::StdioTransport.new(server)
       transport.open
+    end
+
+    def self.start_http(server, port)
+      require "rack"
+      require "webrick"
+
+      transport = ::MCP::Server::Transports::StreamableHTTPTransport.new(server)
+      server.transport = transport
+
+      app = ->(env) { transport.handle_request(Rack::Request.new(env)) }
+
+      require "rackup/handler/webrick"
+      Rackup::Handler::WEBrick.run(
+        Rack::Builder.new { map("/mcp") { run app } },
+        Host: "127.0.0.1",
+        Port: port,
+        Logger: WEBrick::Log.new($stderr, WEBrick::Log::WARN),
+        AccessLog: []
+      )
+    end
+
+    private_class_method :start_stdio, :start_http
+
+    def self.color?
+      $stderr.tty?
+    end
+
+    def self.c(code)
+      color? ? code : ""
+    end
+
+    def self.print_banner(server, http: false, port: DEFAULT_HTTP_PORT)
+      bold = c("\e[1m")
+      dim = c("\e[2m")
+      reset = c("\e[0m")
+      green = c("\e[32m")
+      cyan = c("\e[36m")
+
+      total = server.tools.size
+      transport_label = http ? "http (port #{port})" : "stdio"
+      config = DoorLoopApp.configuration
+
+      warn "#{green}#{bold}doorloop#{reset} MCP server #{dim}v#{DoorLoopApp::VERSION}#{reset}"
+      warn ""
+      warn "#{dim}Email:#{reset}     #{config.email}"
+      warn "#{dim}URL:#{reset}       #{config.url}"
+      warn "#{dim}DB:#{reset}        #{config.db_path.sub(Dir.home, "~")}"
+      warn "#{dim}Headless:#{reset}  #{config.headless?}"
+      warn ""
+      warn "#{dim}Ruby:#{reset}      #{RbConfig.ruby}"
+      warn "#{dim}Version:#{reset}   #{RUBY_VERSION}"
+      warn ""
+      warn "#{dim}Transport:#{reset} #{transport_label}"
+      warn "#{dim}Tools:#{reset}     #{total}"
+
+      TOOL_CLASSES.each do |tc|
+        klass = tc.call
+        klass.tools.each do |t|
+          warn "  #{cyan}#{t[:name]}#{reset}"
+        end
+      end
+
+      warn ""
+      if http
+        warn "#{green}Ready#{reset} #{dim}— listening on http://127.0.0.1:#{port}/mcp#{reset}"
+      else
+        warn "#{green}Ready#{reset} #{dim}— waiting for JSON-RPC requests on stdin...#{reset}"
+      end
     end
   end
 end
