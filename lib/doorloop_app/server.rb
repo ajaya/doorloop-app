@@ -126,7 +126,7 @@ module DoorLoopApp
       warn "#{dim}Email:#{reset}     #{config.email}"
       warn "#{dim}URL:#{reset}       #{config.url}"
       warn "#{dim}DB:#{reset}        #{config.db_path.sub(Dir.home, "~")}"
-      warn "#{dim}Headless:#{reset}  #{config.headless?}"
+      warn "#{dim}Headless:#{reset}  #{config.headless}"
       warn ""
       warn "#{dim}Ruby:#{reset}      #{RbConfig.ruby}"
       warn "#{dim}Version:#{reset}   #{RUBY_VERSION}"
