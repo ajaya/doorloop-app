@@ -54,7 +54,7 @@ module DoorLoopApp
         def submit_2fa_code(code)
           raise "No 2FA code provided" if code.nil? || code.empty?
 
-          log "Entering 2FA code: #{code}"
+          log "Entering 2FA code..."
           fill_otp_inputs(code)
 
           sleep 1
@@ -90,7 +90,7 @@ module DoorLoopApp
           loc = page.locator("[role='checkbox']")
           if loc.count > 0
             log "Checking 'Don't ask me again'..."
-            loc.first.click(timeout: 3000)
+            loc.first.check(timeout: 3000)
           else
             log "No 'Don't ask again' checkbox found."
           end
@@ -105,20 +105,15 @@ module DoorLoopApp
         end
 
         def submit_2fa_form
-          sign_in_loc = page.locator('button:has-text("Sign in")')
-          if sign_in_loc.count > 0
-            log "Clicking Sign in button..."
-            sign_in_loc.first.click(timeout: 5000)
-          else
-            log "No Sign in button found, pressing Enter..."
-            page.keyboard.press("Enter")
-          end
+          page.click_button("Sign in")
+        rescue Browser::Error
+          page.keyboard.press("Enter")
         end
 
         def fill_otp_inputs(code)
           # DoorLoop uses a single input (maxlength=6) for the OTP code.
           # The type attribute is set via JS, so use page.evaluate to find and fill it
-          # rather than relying on Playwright's attribute-based locator.
+          # rather than relying on an attribute-based selector.
           filled = page.evaluate(<<~JS)
             var input = document.querySelector('input:not([type="hidden"])');
             if (input) { input.focus(); input.value = ''; }

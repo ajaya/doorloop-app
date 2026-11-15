@@ -3,6 +3,14 @@
 require "test_helper"
 
 class ConfigurationTest < Minitest::Test
+  def test_an_existing_anthropic_key_does_not_enable_paid_fallbacks_by_default
+    ENV["ANTHROPIC_API_KEY"] = "test-key"
+    ENV.delete("DOORLOOP_ALLOW_PAID_AI")
+    refute DoorLoopApp::Configuration.new.vision_configured?
+    ENV["DOORLOOP_ALLOW_PAID_AI"] = "true"
+    assert DoorLoopApp::Configuration.new.vision_configured?
+  end
+
   def setup
     @original_env = ENV.to_hash
   end

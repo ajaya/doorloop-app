@@ -1,7 +1,7 @@
 # CLAUDE.md — doorloop-app
 
 ## What This Is
-Ruby MCP server for DoorLoop property management via headless Chrome (Playwright).
+Ruby MCP server for DoorLoop property management via local Chrome via agent-browser.
 Exposes 9 MCP tools to AI assistants (Claude, etc.) to read and interact with DoorLoop.
 
 Target account: `https://bansals.app.doorloop.com`
@@ -28,12 +28,12 @@ Tests use Minitest + Mocha. No live DoorLoop connection needed — all browser c
 
 ## Docker
 
-- `Dockerfile` — 4-stage build: `base` → `gems` → `playwright` → `app`
+- `Dockerfile` — 4-stage build: `base` → `gems` → `browser` → `app`
 - `docker-compose.yml` — two services: `mcp` (stdio server) and `login` (one-shot auth)
 - Ruby: 4.0.9 locally (`.ruby-version`) and in Docker (`ruby:4.0.9-slim-bookworm`)
-- Node.js 22 + Chromium via `playwright install --with-deps`; npm Playwright 1.64.0 matches the Ruby client 1.64.x
+- Node.js 22 + Debian Chromium + agent-browser 0.43.0; no Playwright dependency or paid browser provider
 - `/data` volume maps to `~/.doorloop-mcp` on host (Chrome profile + SQLite)
-- Required Chromium flags in container: `PLAYWRIGHT_CHROMIUM_ARGS=--no-sandbox --disable-setuid-sandbox`
+- Required Chromium flags in container: `DOORLOOP_BROWSER_ARGS=--no-sandbox,--disable-setuid-sandbox`
 - `mcp` service: `stdin_open: true`, `tty: false` (stdio transport requires open stdin, no TTY)
 - `login` service: `stdin_open: true`, `tty: true` (interactive)
 
@@ -56,16 +56,16 @@ docker compose run --rm mcp      # start MCP stdio server
 MCP Tools (lib/doorloop_app/tools/)
   ↓
 Data::Executor (lib/doorloop_app/data/executor.rb)
-  Layer 1: Api::Endpoints/* — direct HTTP (requires discovered registry token)
-  Layer 2: Browser::Pages/* — Playwright API interception
-  Layer 3: Vision::Client — Claude AI text extraction (fallback)
+  Layer 1: Api::Endpoints/* — authenticated in-browser fetch of discovered routes
+  Layer 2: Browser::Pages/* — agent-browser network response capture and route discovery
+  Layer 3: Vision::Client — optional paid Claude fallback (disabled by default)
   ↓ (on success)
 Store → Models (SQLite via Sequel ORM)
 ```
 
 ### Key Singletons (lib/doorloop_app.rb)
 ```ruby
-DoorLoopApp.session      # Browser::Session (Playwright)
+DoorLoopApp.session      # Browser::Session (persistent agent-browser/Chrome)
 DoorLoopApp.store        # Store → SQLite models
 DoorLoopApp.executor     # Data::Executor (3-layer)
 DoorLoopApp.configuration
@@ -90,9 +90,19 @@ DoorLoopApp.eager_load!  # Zeitwerk eager load (called by entry points)
 | `doorloop_list_leases` | `ListLeasesTool` | All active leases (API ignores property filter) |
 | `doorloop_find_tenant` | `FindTenantTool` | DB search → LLM fuzzy match fallback |
 | `doorloop_receive_payment` | `ReceivePaymentTool` | Fills form, does **NOT** submit |
-| `doorloop_list_lease_transactions` | `ListLeaseTransactionsTool` | Requires `lease_id`; browser-only (no API layer) |
+| `doorloop_list_lease_transactions` | `ListLeaseTransactionsTool` | Requires `lease_id`; browser API replay after first network discovery |
 
 ---
+
+## Persistent Sessions and Browser API
+
+- `bin/doorloop login --manual` opens visible local Chrome; credentials can be entered there and 2FA completed manually. The profile remains at `DOORLOOP_PROFILE_DIR` across process/browser restarts.
+- `Browser::AgentBrowser` invokes the pinned free local CLI. No paid provider, auto-connection or inherited agent-browser environment is used.
+- `Browser::Session#request` executes same-origin `/api/` fetches with HTTP-only cookies and observed authorization/CSRF headers; redirects are rejected and writes never automatically retried.
+- `Api::Registry#record_response` persists discovered GET routes without tokens/headers. CLI and MCP both construct the browser API client.
+- `api_token.json` and `Api::TokenStore` have been retired. Do not bring back token copying or separate DoorLoop HTTP requests.
+- Paid vision/fuzzy matching require explicit `DOORLOOP_ALLOW_PAID_AI=true`; browser data retrieval works without them.
+- Real regression coverage: `RUN_BROWSER_TESTS=1 bundle exec rake test` verifies a full process/browser restart against a local authenticated fixture.
 
 ## Browser Pages (API Interception Pattern)
 
@@ -125,7 +135,7 @@ api_body = JSON.parse(response.body)
 `/leases/active-leases/{lease_id}/transactions/payment/new?period=all-time&filter_lease={lease_id}`
 
 ### Transactions XHR Capture Gotcha
-After a payment is saved, DoorLoop auto-redirects to the transactions page. Navigating to the same URL again won't re-fire the XHR (React Router skips the reload). `LeaseTransactionsPage#list_all` detects this and navigates to `/leases/active-leases` first to force a fresh XHR on the subsequent navigation. URL matcher requires both `/api/transactions` and `filter_lease` query param to avoid matching unrelated API calls.
+After a payment is saved, DoorLoop auto-redirects to the transactions page. Navigating to the same URL again won't re-fire the XHR (React Router skips the reload). `LeaseTransactionsPage#list_all` detects this and navigates to `/leases/active-leases` first to force a fresh XHR on the subsequent navigation. URL matcher requires both `/api/reports/lease-accounts-receivable/` and `filter_lease` query param to avoid matching unrelated API calls.
 
 ---
 
@@ -204,7 +214,7 @@ Default: `~/.doorloop-mcp/doorloop.sqlite3`
 
 - Model: `claude-haiku-4-5-20251001` (default), overridable via `DOORLOOP_LLM_MODEL`
 - Uses `ruby_llm` gem → `RubyLLM.chat(model:).ask(prompt)`
-- Requires `ANTHROPIC_API_KEY` in `.env.local`
+- Requires both `DOORLOOP_ALLOW_PAID_AI=true` and `ANTHROPIC_API_KEY` in `.env.local`
 - Private `call_llm(prompt)` method is stubbed in tests
 
 ---
@@ -234,7 +244,7 @@ loader.inflector.inflect("mcp" => "MCP", "cli" => "CLI", "llm" => "LLM")
 - `log "..."` helper in page objects (writes to stderr)
 - MCP tool response: `::MCP::Tool::Response.new([{type: "text", text: ...}], error: true/false)`
 - Test mock builders in `test/test_helper.rb`: `build_mock_session`, `build_mock_page`, `build_server_context`
-- Playwright `TimeoutError` constructor: `new(message: "...")` (keyword arg required)
+- Browser failures use `Browser::Error`; arguments/responses are withheld from transport errors to avoid credential leaks
 
 ---
 
@@ -247,13 +257,14 @@ DOORLOOP_URL=bansals.app.doorloop.com
 DOORLOOP_HEADLESS=true                    # false to see browser
 DOORLOOP_PROFILE_DIR=~/.doorloop-mcp/chrome-profile
 DOORLOOP_DB_PATH=~/.doorloop-mcp/doorloop.sqlite3
-DOORLOOP_API_REGISTRY=config/api_registry.json  # optional, path to API token registry
+DOORLOOP_API_REGISTRY=~/.doorloop-mcp/api_registry.json  # paths/query parameters only
 
 # AgentMail (auto 2FA + payment confirmation emails)
 AGENTMAIL_API_KEY=...
 AGENTMAIL_INBOX_ID=...
 
-# Claude AI (tenant matching + vision fallback)
+# Optional paid Claude AI (off by default)
+DOORLOOP_ALLOW_PAID_AI=false
 ANTHROPIC_API_KEY=...
 DOORLOOP_LLM_MODEL=claude-haiku-4-5-20251001     # for tenant fuzzy matching
 DOORLOOP_VISION_MODEL=claude-sonnet-4-20250514   # for vision page extraction
@@ -266,7 +277,7 @@ DOORLOOP_CONFIRMATION_EMAIL_TO=...
 
 ## Known Gotchas
 
-- `playwright-ruby-client` has a binary stdout bug — patched via `playwright_transport_patch.rb` (force_encoding UTF-8)
+- agent-browser is invoked locally using JSON batches over stdin; never interpolate scripts or credentials into shell commands
 - CloudFront blocks headless Chrome — use `DOORLOOP_HEADLESS=false` for browser discovery scripts
 - `has_valid_session?` checks both URL path and page title (error pages can redirect to non-login URLs)
 - DoorLoop leases API returns **all** leases regardless of `filter_property` param — always fetch once

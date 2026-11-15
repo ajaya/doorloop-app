@@ -39,6 +39,7 @@ module DoorLoopApp
     def executor
       @executor ||= Data::Executor.new(
         session: session,
+        api_client: Api::Client.new(session: session),
         store: store
       )
     end

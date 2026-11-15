@@ -38,6 +38,8 @@ module DoorLoopApp
           row(io, "Headless",    config.headless.to_s, env_source("DOORLOOP_HEADLESS"))
           row(io, "Profile Dir", config.profile_dir,   env_source("DOORLOOP_PROFILE_DIR"),
               annotation: path_status(config.profile_dir))
+          row(io, "Driver", config.agent_browser_path, env_source("DOORLOOP_AGENT_BROWSER_PATH"))
+          row(io, "Executable", config.browser_executable || "auto-detect local Chrome", env_source("DOORLOOP_BROWSER_EXECUTABLE"))
 
           # ── AgentMail ─────────────────────────────────────────────
           section(io, "AgentMail (2FA & notifications)",
@@ -49,7 +51,8 @@ module DoorLoopApp
           # ── Claude AI ─────────────────────────────────────────────
           section(io, "Claude AI (LLM + vision)",
                   status: config.vision_configured? ? :ok : :off,
-                  status_label: config.vision_configured? ? "configured" : "not configured — LLM/vision disabled")
+                  status_label: config.vision_configured? ? "paid AI enabled" : "disabled — free mode")
+          row(io, "Allow Paid AI", config.allow_paid_ai.to_s, env_source("DOORLOOP_ALLOW_PAID_AI"))
           row(io, "Anthropic Key", config.anthropic_api_key, env_source("ANTHROPIC_API_KEY"), secret: true)
           row(io, "LLM Model",     config.llm_model,         env_source("DOORLOOP_LLM_MODEL"))
           row(io, "Vision Model",  config.vision_model,      env_source("DOORLOOP_VISION_MODEL"))

@@ -20,22 +20,6 @@ class LoginToolTest < Minitest::Test
   def test_successful_login
     session = build_mock_session
     session.expects(:authenticate!).returns({ status: :logged_in })
-    session.expects(:extract_auth_tokens).returns({ token: "abc123", token_type: :bearer })
-
-    token_store = mock("token_store")
-    token_store.expects(:update).with(token: "abc123", token_type: :bearer)
-
-    server = build_test_server(session: session, token_store: token_store)
-    DoorLoopApp::Tools::LoginTool.register(server)
-    result = call_tool(server, "doorloop_login")
-
-    refute result[:isError]
-    assert_match(/Successfully logged in/, result[:content].first[:text])
-  end
-
-  def test_successful_login_without_token_store
-    session = build_mock_session
-    session.expects(:authenticate!).returns({ status: :logged_in })
 
     server = build_test_server(session: session)
     DoorLoopApp::Tools::LoginTool.register(server)

@@ -1,6 +1,6 @@
 # doorloop-app
 
-An MCP (Model Context Protocol) server for [DoorLoop](https://www.doorloop.com/) property management. Allows AI assistants (Claude, etc.) to interact with DoorLoop via browser automation and direct API calls.
+An MCP (Model Context Protocol) server for [DoorLoop](https://www.doorloop.com/) property management. Allows AI assistants (Claude, etc.) to interact with DoorLoop through local agent-browser automation and authenticated API calls inside Chrome.
 
 ## Features
 
@@ -22,16 +22,19 @@ An MCP (Model Context Protocol) server for [DoorLoop](https://www.doorloop.com/)
 
 Each read operation uses a 3-layer fallback:
 
-1. **Direct API** — Fastest. Uses a token cached from a previous browser session.
-2. **Browser (Playwright)** — Intercepts the DoorLoop XHR API response during page navigation.
-3. **AI Vision (Claude)** — Extracts structured data from page text as a last resort.
+1. **Browser API replay** — Calls discovered DoorLoop endpoints using `fetch` inside authenticated Chrome, with its HTTP-only cookies and observed authorization/CSRF headers.
+2. **Network discovery** — Navigates the relevant page with agent-browser, captures the actual API response and remembers the route for future API replay. Full records and IDs are preserved.
+3. **Optional paid AI** — Disabled by default. Existing Claude text extraction and fuzzy matching require both `DOORLOOP_ALLOW_PAID_AI=true` and an Anthropic API key.
+
+Browser automation runs locally, uses the free Apache-2.0 agent-browser CLI, and requires no cloud-browser account or LLM subscription. Login/2FA and payment-form preparation still use browser controls. Payment submission remains a manual Save action.
 
 All fetched data is cached in a local SQLite database (`~/.doorloop-mcp/doorloop.sqlite3`).
 
 ## Requirements
 
 - Ruby 4.0.9 (see `.ruby-version`)
-- Node.js (for Playwright browser binaries)
+- Node.js 22+ (for the agent-browser npm launcher)
+- Local Chrome/Chromium, or the free browser downloaded by `agent-browser install`
 - A DoorLoop account
 
 ## Setup
@@ -40,11 +43,45 @@ All fetched data is cached in a local SQLite database (`~/.doorloop-mcp/doorloop
 # Install dependencies
 bundle install
 npm ci
-npx playwright install chromium
+npx --no-install agent-browser install
 
 # Configure environment
 cp .env.example .env.local
-# Edit .env.local with your DoorLoop credentials
+# Set DOORLOOP_URL if needed. Saved email/password are optional for manual login.
+
+# Authenticate once in visible local Chrome, including 2FA
+bundle exec bin/doorloop login --manual
+
+# Reuse that profile for browser API requests
+bundle exec bin/doorloop properties list --refresh
+```
+
+
+### Persistent authentication and browser API access
+
+The default profile remains `~/.doorloop-mcp/chrome-profile`, so an existing profile is reused in place. A successful `login --manual` closes Chrome cleanly, keeping cookies, local storage and trusted-device state for later CLI/MCP processes. Select DoorLoop's “Don't ask again” option during 2FA when available. DoorLoop can still expire/revoke a session or require 2FA again; the app reports this instead of claiming the session is authenticated.
+
+`DOORLOOP_PROFILE_DIR` selects a different persistent profile. `DOORLOOP_BROWSER_EXECUTABLE` selects an installed browser. `DOORLOOP_AGENT_BROWSER_PATH` selects a globally installed CLI when the project-local npm binary is unavailable. Keep using the same profile and OS account; Chrome profiles should not be open in another Chrome process or copied between operating systems.
+
+Routes are saved at `~/.doorloop-mcp/api_registry.json` (override with `DOORLOOP_API_REGISTRY`). The registry stores paths and query parameters, with no authentication headers. The old `api_token.json` is no longer read or written.
+
+Programmatic API calls run in the browser, with same-origin checks and redirects disabled:
+
+```ruby
+client = DoorLoopApp::Api::Client.new(session: DoorLoopApp.session)
+client.get("/api/properties/custom-fields", params: { page: 1 })
+# client.post("/api/<verified-endpoint>", body: verified_payload)
+# Writes are not retried automatically. Verify endpoint and payload first.
+```
+
+For network inspection in `bin/doorloop console`:
+
+```ruby
+session = DoorLoopApp.session
+session.ensure_authenticated!
+requests = session.browser.command("network", "requests")
+# Inspect the full request/response, including its body, using an observed ID:
+# session.browser.command("network", "request", request_id)
 ```
 
 ### Environment Variables
@@ -52,7 +89,7 @@ cp .env.example .env.local
 ```bash
 DOORLOOP_EMAIL=you@example.com
 DOORLOOP_PASSWORD=yourpassword
-DOORLOOP_URL=yourorg.app.doorloop.com   # defaults to bansals.app.doorloop.com
+DOORLOOP_URL=https://yourorg.app.doorloop.com   # defaults to bansals.app.doorloop.com
 
 # Optional
 DOORLOOP_HEADLESS=true                  # set false to see the browser
@@ -62,7 +99,8 @@ AGENTMAIL_API_KEY=...
 AGENTMAIL_INBOX_ID=...
 DOORLOOP_CONFIRMATION_EMAIL_TO=you@example.com  # enables post-payment email
 
-# Claude AI — vision fallback + tenant fuzzy matching
+# Optional paid Claude AI — disabled by default
+DOORLOOP_ALLOW_PAID_AI=false
 ANTHROPIC_API_KEY=...
 DOORLOOP_LLM_MODEL=claude-haiku-4-5-20251001    # model for tenant fuzzy matching
 DOORLOOP_VISION_MODEL=claude-sonnet-4-20250514  # model for vision page extraction
@@ -83,7 +121,7 @@ docker compose run --rm login
 docker compose run --rm mcp
 ```
 
-The image bundles Ruby 4.0, Node.js 22, Chromium, and all Playwright dependencies. Data (Chrome profile + SQLite DB) is persisted to `~/.doorloop-mcp` on the host via a volume mount.
+The image bundles Ruby 4.0.9, Node.js 22, Debian Chromium, and agent-browser. Data (Chrome profile + SQLite DB) is persisted to `~/.doorloop-mcp` on the host via a volume mount.
 
 ### MCP client config (Docker)
 
@@ -104,8 +142,8 @@ The image bundles Ruby 4.0, Node.js 22, Chromium, and all Playwright dependencie
 |-------|------|---------|
 | `base` | `ruby:4.0.9-slim-bookworm` | Ruby + Node.js 22 + build deps |
 | `gems` | `base` | Bundle install (without development group) |
-| `playwright` | `gems` | `npm ci` + `playwright install chromium --with-deps` |
-| `app` | `playwright` | Full source + `/data` volume |
+| `browser` | `gems` | `npm ci` + local agent-browser executable |
+| `app` | `browser` | Full source + `/data` volume |
 
 - `ENTRYPOINT`: `bundle exec bin/doorloop`
 - `CMD`: `server`
@@ -202,8 +240,8 @@ graph TD
     end
 
     subgraph Executor["Data::Executor (3-layer fallback)"]
-        L1["Layer 1: Direct API\nHTTP + cached token"]
-        L2["Layer 2: Browser\nPlaywright XHR interception"]
+        L1["Layer 1: Browser API\nauthenticated fetch"]
+        L2["Layer 2: Discovery\nagent-browser network capture"]
         L3["Layer 3: Vision\nClaude AI text extraction"]
     end
 
@@ -223,7 +261,7 @@ graph TD
     SERVER --> TOOLS
     TOOLS --> Executor
     L1 -->|"REST"| DL
-    L2 -->|"Playwright"| DL
+    L2 -->|"agent-browser"| DL
     L3 --> CLAUDE_AI
     Executor --> DB
     L2 --> CHROME
@@ -237,12 +275,12 @@ graph TD
 flowchart LR
     REQ["operation\ncall"] --> API
 
-    API{"Layer 1\nDirect API\ntoken valid?"}
+    API{"Layer 1\nBrowser API\nroute known?"}
     API -->|yes| API_CALL["HTTP GET\n/api/..."]
     API_CALL -->|success| STORE
     API_CALL -->|fail / auth error| BROWSER
 
-    API -->|no token| BROWSER
+    API -->|unknown route| BROWSER
 
     BROWSER{"Layer 2\nBrowser\nXHR intercept"}
     BROWSER --> NAV["navigate_to(path)\n+ expect_response(...)"]
@@ -265,7 +303,7 @@ sequenceDiagram
     participant U as User / AI
     participant CLI as CLI / MCP Tool
     participant DB as SQLite
-    participant PW as Playwright Browser
+    participant PW as Chrome via agent-browser
     participant DL as DoorLoop
     participant AM as AgentMail
 
@@ -304,10 +342,10 @@ lib/doorloop_app/
   server.rb               MCP server setup
   tool.rb                 Base tool class
   tools/                  9 MCP tools
-  browser/                Playwright session + page objects
+  browser/                agent-browser runner + persistent session + page objects
     pages/                PropertiesPage, UnitsPage, TenantsPage,
                           LeasesPage, LeaseTransactionsPage, PaymentPage
-  api/                    REST API client (token-based, post-login)
+  api/                    In-browser API client + discovered route registry
     endpoints/            Properties, Units, Tenants, Leases
   models/                 Sequel ORM models (SQLite)
     json_backed.rb        Shared upsert/find/stale logic
@@ -327,6 +365,14 @@ bundle exec rake test
 ```
 
 Tests use Minitest + Mocha with mock browser sessions. No live DoorLoop connection required.
+
+To run the real local-browser test as well:
+
+```bash
+RUN_BROWSER_TESTS=1 bundle exec rake test
+```
+
+It starts a local fixture, authenticates, closes Chrome and Ruby, then starts a new process with the same profile. It verifies persistent HTTP-only cookies/local storage, network response bodies, authorization/CSRF replay, query encoding, full API records and POST requests. Set `DOORLOOP_BROWSER_EXECUTABLE` to a specific Chrome executable if needed.
 
 ## License
 

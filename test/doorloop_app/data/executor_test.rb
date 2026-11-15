@@ -7,9 +7,6 @@ class ExecutorTest < Minitest::Test
 
   def test_uses_api_layer_first
     session = build_mock_session
-    token_store = mock("token_store")
-    token_store.stubs(:valid?).returns(true)
-
     api_client = mock("api_client")
     registry = mock("registry")
     registry.stubs(:endpoint).returns({ "path" => "/api/properties", "query_params" => {} })
@@ -21,8 +18,7 @@ class ExecutorTest < Minitest::Test
 
     executor = DoorLoopApp::Data::Executor.new(
       session: session,
-      api_client: api_client,
-      token_store: token_store
+      api_client: api_client
     )
 
     result = executor.call(:list_properties)
@@ -32,9 +28,6 @@ class ExecutorTest < Minitest::Test
   def test_falls_back_to_dom_when_api_fails
     session = build_mock_session
     session.stubs(:ensure_authenticated!)
-
-    token_store = mock("token_store")
-    token_store.stubs(:valid?).returns(true)
 
     api_client = mock("api_client")
     registry = mock("registry")
@@ -51,8 +44,7 @@ class ExecutorTest < Minitest::Test
 
     executor = DoorLoopApp::Data::Executor.new(
       session: session,
-      api_client: api_client,
-      token_store: token_store
+      api_client: api_client
     )
 
     result = executor.call(:list_properties)

@@ -21,13 +21,11 @@ module DoorLoopApp
     def self.build
       config = DoorLoopApp.configuration
 
-      # Browser layer (Playwright)
+      # Local Chrome via agent-browser, with the persistent profile.
       session = Browser::Session.new
 
-      # API layer (direct HTTP)
-      token_store = Api::TokenStore.new(session_dir: File.dirname(config.db_path))
-      api_registry = Api::Registry.new
-      api_client = api_registry.discovered? ? Api::Client.new(token_store: token_store, registry: api_registry) : nil
+      # API requests execute in the authenticated browser context.
+      api_client = Api::Client.new(session: session)
 
       # Vision layer (Claude AI fallback)
       vision_client = config.vision_configured? ? Vision::Client.new : nil
@@ -39,7 +37,6 @@ module DoorLoopApp
       executor = Data::Executor.new(
         session: session,
         api_client: api_client,
-        token_store: token_store,
         vision_client: vision_client,
         store: store
       )
@@ -59,8 +56,7 @@ module DoorLoopApp
           session:,
           executor:,
           store:,
-          service:,
-          token_store:
+          service:
         }
       )
     end

@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Replace Playwright with pinned, free, local agent-browser 0.43.0.
+- Reuse the Chrome profile across CLI/MCP processes and add `login --manual` for visible authentication and 2FA.
+- Execute DoorLoop API GET/POST/PUT requests inside authenticated Chrome with observed authorization/CSRF headers; remove copied-token HTTP requests.
+- Remember discovered API routes without secrets and preserve full API records, including IDs.
+- Add a real Chrome regression test for cookies, local storage, network capture and browser API requests across a complete process restart.
+- Keep paid AI fallbacks disabled unless explicitly enabled.
+
+## Ruby 4.0.9 upgrade
+
 - Align local and Docker runtimes on Ruby 4.0.9 and Bundler 4.0.24.
 - Update gems, including MCP 1.10, RubyLLM 2.2, Sequel 5.110, Minitest 6.1, and Mocha 3.1.
 - Align npm Playwright 1.64.0 with playwright-ruby-client 1.64.x.

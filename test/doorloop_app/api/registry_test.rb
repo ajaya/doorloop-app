@@ -4,6 +4,23 @@ require "test_helper"
 require "tmpdir"
 
 class RegistryTest < Minitest::Test
+  def test_records_discovered_routes_without_persisting_authentication
+    Dir.mktmpdir("registry") do |dir|
+      path = File.join(dir, "registry.json")
+      registry = DoorLoopApp::Api::Registry.new(path: path)
+      response = DoorLoopApp::Browser::Response.new(
+        url: "#{DoorLoopApp.configuration.url}/api/leases/tenants/custom-fields?period=all-time&token=secret",
+        status: 200, method: "GET", body: '{"data":[]}', headers: { "Authorization" => "Bearer secret" }
+      )
+      registry.record_response(response)
+      endpoint = DoorLoopApp::Api::Registry.new(path: path).endpoint("list_tenants")
+      assert_equal "/api/leases/tenants/custom-fields", endpoint["path"]
+      assert_equal({ "period" => "all-time" }, endpoint["query_params"])
+      refute_includes File.read(path), "secret"
+      assert_equal 0o600, File.stat(path).mode & 0o777
+    end
+  end
+
   def setup
     @tmpdir = Dir.mktmpdir("doorloop_test")
   end

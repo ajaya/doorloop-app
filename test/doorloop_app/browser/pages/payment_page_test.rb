@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require "test_helper"
-require "playwright"
 
 module DoorLoopApp
   module Browser
@@ -61,7 +60,7 @@ module DoorLoopApp
         end
 
         def test_fill_payment_returns_error_on_timeout
-          @page.stubs(:wait_for_selector).raises(Playwright::TimeoutError.new(message: "Timeout 10000ms"))
+          @page.stubs(:wait_for_selector).raises(DoorLoopApp::Browser::Error.new("Timeout 10000ms"))
 
           result = @payment_page.fill_payment(lease_id: "abc123", amount: "100")
 

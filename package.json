@@ -15,7 +15,7 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "playwright": "1.64.0"
+    "agent-browser": "0.43.0"
   },
   "devDependencies": {
     "agentation": "^2.2.1"

@@ -16,6 +16,7 @@ module DoorLoopApp
       # Given a search query and all tenants, ask LLM to find the best match.
       # Returns the matched tenant hash or nil.
       def find(query, tenants)
+        return nil unless DoorLoopApp.configuration.vision_configured?
         return nil if tenants.empty?
 
         tenant_list = tenants.map { |t|

@@ -66,7 +66,6 @@ module TestHelpers
     session.stubs(:browser).returns(build_mock_browser)
     session.stubs(:ensure_authenticated!)
     session.stubs(:authenticate!)
-    session.stubs(:extract_auth_tokens).returns(nil)
     session
   end
 

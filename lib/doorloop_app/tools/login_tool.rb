@@ -15,13 +15,6 @@ module DoorLoopApp
           )
         end
 
-        # Login succeeded — extract tokens for API layer
-        token_store = server_context[:token_store]
-        if token_store
-          token_data = session.extract_auth_tokens
-          token_store.update(token: token_data[:token], token_type: :bearer) if token_data
-        end
-
         message_response("Successfully logged in to DoorLoop as #{DoorLoopApp.configuration.email}.")
       rescue => e
         error_response("Login failed: #{e.message}")

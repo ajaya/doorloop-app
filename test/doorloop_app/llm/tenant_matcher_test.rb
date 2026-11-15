@@ -5,6 +5,17 @@ require "test_helper"
 module DoorLoopApp
   module LLM
     class TenantMatcherTest < Minitest::Test
+      def setup
+        DoorLoopApp.configuration.stubs(:vision_configured?).returns(true)
+      end
+
+      def test_free_mode_does_not_call_a_paid_model
+        DoorLoopApp.configuration.stubs(:vision_configured?).returns(false)
+        matcher = DoorLoopApp::LLM::TenantMatcher.new
+        matcher.expects(:call_llm).never
+        assert_nil matcher.find("Unknown", [{ id: "t1", name: "Test" }])
+      end
+
       def test_returns_matching_tenant
         tenants = [
           { id: "t1", name: "Prayag Bansal", email: "prayag@test.com", phone: "555-0001", status: "CURRENT" },

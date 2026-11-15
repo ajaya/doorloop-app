@@ -7,7 +7,7 @@ Gem::Specification.new do |spec|
   spec.version = DoorLoopApp::VERSION
   spec.authors = ["Ajaya Agrawalla"]
   spec.summary = "MCP server for DoorLoop property management"
-  spec.description = "A Ruby MCP server that lets AI assistants interact with DoorLoop via Playwright browser automation"
+  spec.description = "A Ruby MCP server for DoorLoop using local agent-browser and authenticated browser API requests"
   spec.license = "MIT"
   spec.required_ruby_version = ">= 4.0.9"
 
@@ -19,7 +19,6 @@ Gem::Specification.new do |spec|
   spec.add_dependency "ruby-anthropic", "~> 0.4"
   spec.add_dependency "dotenv", "~> 3.0"
   spec.add_dependency "faraday", "~> 2.0"
-  spec.add_dependency "playwright-ruby-client", "~> 1.64.0"
   spec.add_dependency "mcp", "~> 1.10"
   spec.add_dependency "rack", "~> 3.1"
   spec.add_dependency "rackup", "~> 2.2"

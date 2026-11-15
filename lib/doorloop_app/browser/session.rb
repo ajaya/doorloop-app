@@ -1,52 +1,43 @@
 # frozen_string_literal: true
 
-require "playwright"
+require "json"
+require "uri"
 
 module DoorLoopApp
   module Browser
     class Session
       attr_reader :page, :browser
 
-      def initialize
-        @execution = nil
+      def initialize(config: DoorLoopApp.configuration)
+        @config = config
         @browser = nil
         @page = nil
         @authenticated = false
+        @api_headers = {}
         @mutex = Mutex.new
+      end
+
+      def registry
+        @registry ||= Api::Registry.new(path: @config.api_registry_path)
       end
 
       def start
         @mutex.synchronize do
           return if @page
 
-          config = DoorLoopApp.configuration
-          $stderr.puts "Launching browser (headless=#{config.headless})..."
-
-          FileUtils.mkdir_p(config.profile_dir)
-
-          @execution = Playwright.create(playwright_cli_executable_path: find_playwright_cli)
-
-          extra_args = ENV.fetch("PLAYWRIGHT_CHROMIUM_ARGS", "").split
-          @browser = @execution.playwright.chromium.launch_persistent_context(
-            config.profile_dir,
-            headless: config.headless,
-            args: ["--disable-blink-features=AutomationControlled"] + extra_args,
-            viewport: { width: 1280, height: 800 }
-          )
-
-          @page = @browser.pages.first || @browser.new_page
-          $stderr.puts "Browser ready."
+          @browser = AgentBrowser.new(config: @config)
+          @browser.command("open", "about:blank")
+          @page = AgentPage.new(@browser, on_response: method(:observe_response))
         end
       end
 
       def stop
         @mutex.synchronize do
           @browser&.close
-          @execution&.stop
           @browser = nil
-          @execution = nil
           @page = nil
           @authenticated = false
+          @api_headers = {}
         end
       rescue => e
         $stderr.puts "Warning: Could not stop browser: #{e.message}"
@@ -56,13 +47,25 @@ module DoorLoopApp
         @authenticated
       end
 
+      def confirm_authenticated!
+        raise Api::AuthenticationError, "Login is not complete; finish DoorLoop login and 2FA in the browser" unless has_valid_session?
+
+        @authenticated = true
+      end
+
       def authenticate!
         start unless @page
-        config = DoorLoopApp.configuration
-        config.validate!
+        if has_valid_session?
+          @authenticated = true
+          return { status: :logged_in }
+        end
+
+        if @config.email.to_s.empty? || @config.password.to_s.empty?
+          raise Api::AuthenticationError, "No valid saved session. Run doorloop login --manual to complete login and 2FA in Chrome"
+        end
 
         login_page = Pages::LoginPage.new(self)
-        result = login_page.login(config.email, config.password)
+        result = login_page.login(@config.email, @config.password)
 
         @authenticated = true if result[:status] == :logged_in
         result
@@ -85,12 +88,14 @@ module DoorLoopApp
           return
         end
 
-        authenticate!
+        result = authenticate!
+        unless result[:status] == :logged_in
+          raise Api::AuthenticationError, "DoorLoop needs two-factor authentication; submit the code or run doorloop login --manual"
+        end
       end
 
       def navigate(path)
-        config = DoorLoopApp.configuration
-        url = path.start_with?("http") ? path : "#{config.url}#{path}"
+        url = URI.join(@config.url, path).to_s
         @page.goto(url, waitUntil: "domcontentloaded")
       end
 
@@ -106,15 +111,51 @@ module DoorLoopApp
         @page.evaluate("document.body.innerText")
       end
 
-      # Extract auth tokens from cookies (for API layer)
-      def extract_auth_tokens
-        cookies = @browser.cookies
-        auth_cookie = cookies.find do |c|
-          c["name"].to_s.match?(/token|auth|session|jwt/i) && c["value"].to_s.length > 20
+      # All DoorLoop HTTP runs inside Chrome, retaining HttpOnly cookies,
+      # same-origin policy, browser identity and any observed auth/CSRF headers.
+      # Writes are never automatically retried.
+      def request(method, path, params: {}, body: nil)
+        url = api_url(path)
+        query = URI.decode_www_form(url.query || "") + params.to_a
+        url.query = URI.encode_www_form(query) unless query.empty?
+        ensure_authenticated!
+        capture_api_headers
+        payload = { url: url.to_s, method: method.to_s.upcase, headers: @api_headers, body: body }
+        result = evaluate(<<~JS)
+          (async () => {
+            const request = #{JSON.generate(payload)};
+            const url = new URL(request.url);
+            if (url.origin !== location.origin || !url.pathname.startsWith('/api/')) {
+              throw new Error('API request must stay on the DoorLoop origin');
+            }
+            const options = {
+              method: request.method, credentials: 'include', redirect: 'error',
+              headers: {...request.headers, Accept: 'application/json'},
+              signal: AbortSignal.timeout(30000)
+            };
+            if (request.body !== null) {
+              options.headers['Content-Type'] = 'application/json';
+              options.body = JSON.stringify(request.body);
+            }
+            const response = await fetch(url, options);
+            return {status: response.status, body: await response.text()};
+          })()
+        JS
+        status = result.fetch("status")
+        if [401, 403].include?(status)
+          @authenticated = false
+          @api_headers = {}
+          raise Api::AuthenticationError, "DoorLoop denied the API request (#{status}); check login and permissions"
         end
-        return nil unless auth_cookie
+        raise Api::Error, "DoorLoop API returned HTTP #{status}" unless (200...300).cover?(status)
 
-        { token: auth_cookie["value"], source: :cookie, name: auth_cookie["name"] }
+        result["body"].to_s.empty? ? nil : JSON.parse(result.fetch("body"))
+      rescue JSON::ParserError
+        raise Api::Error, "DoorLoop API returned invalid JSON"
+      rescue Browser::Error
+        @authenticated = false
+        @api_headers = {}
+        raise Api::Error, "Browser API request failed; check local Chrome and the DoorLoop login"
       end
 
       private
@@ -123,14 +164,14 @@ module DoorLoopApp
         start unless @page
         $stderr.puts "Checking for valid session..."
 
-        config = DoorLoopApp.configuration
-        @page.goto(config.url, waitUntil: "domcontentloaded")
+        @page.goto(@config.url, waitUntil: "domcontentloaded")
         sleep 2
 
         url = @page.url
-        $stderr.puts "Session check — URL: #{url}"
-
-        return false if url.include?("/login") || url.include?("/signin") || url.include?("/auth")
+        return false unless same_origin?(URI.parse(url), URI.parse(@config.url))
+        return false if URI.parse(url).path.match?(%r{/(?:login|signin|auth)(?:/|$)}i)
+        return false if @page.evaluate("!!document.querySelector('input[type=password]')")
+        return false if text_content.match?(/verify you are human|access denied|verification code|two.factor authentication/i)
 
         $stderr.puts "Valid session found — skipping login."
         true
@@ -139,13 +180,36 @@ module DoorLoopApp
         false
       end
 
-      def find_playwright_cli
-        # Check common locations
-        paths = [
-          File.join(DoorLoopApp.root, "node_modules", ".bin", "playwright"),
-          `which playwright 2>/dev/null`.strip
-        ]
-        paths.find { |p| !p.empty? && File.exist?(p) } || "npx playwright"
+      def api_url(path)
+        url = URI.join(@config.url, path)
+        unless same_origin?(url, URI.parse(@config.url)) && url.path.start_with?("/api/")
+          raise ArgumentError, "API requests must use a /api/ path on the configured DoorLoop origin"
+        end
+        url
+      end
+
+      def same_origin?(left, right)
+        [left.scheme, left.host, left.port] == [right.scheme, right.host, right.port]
+      end
+
+      def capture_api_headers
+        @browser.command("network", "requests").fetch("requests", []).each do |entry|
+          next unless entry["status"] == 200 && entry["method"] == "GET"
+
+          observe_response(Response.new(url: entry["url"], status: entry["status"],
+                                        body: nil, headers: entry["headers"] || {}, method: "GET"))
+        end
+      end
+
+      def observe_response(response)
+        api_url(response.url) # Never copy authentication headers across origins.
+        response.headers.each do |name, value|
+          @api_headers[name.downcase] = value if name.match?(/\A(?:authorization|x-.+)\z/i)
+        end
+        registry.record_response(response)
+        true
+      rescue ArgumentError, URI::InvalidURIError
+        false
       end
     end
   end

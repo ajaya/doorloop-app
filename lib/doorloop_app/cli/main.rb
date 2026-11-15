@@ -22,6 +22,7 @@ module DoorLoopApp
       end
 
       desc "login", "Login to DoorLoop (saves session to Chrome profile)"
+      method_option :manual, type: :boolean, default: false, desc: "Open local Chrome for manual login and 2FA; no saved credentials required"
       long_desc <<~DESC
         Opens a browser, logs in to DoorLoop with credentials from .env.local,
         and saves the session to the Chrome profile directory so future commands
@@ -29,14 +30,28 @@ module DoorLoopApp
       DESC
       def login
         config = DoorLoopApp.configuration
-        config.validate!
-
-        say "Logging in to #{config.url} as #{config.email}..."
-        session = Browser::Session.new
+        config.headless = false if options[:manual]
+        session = DoorLoopApp.session
         begin
           session.start
-          session.authenticate!
-          say "Login successful! Session saved."
+          if options[:manual]
+            session.navigate(config.url)
+            say "Complete DoorLoop login and 2FA in Chrome. Select 'Don't ask again' if offered."
+            say "When the dashboard is ready, press Enter here to save and verify the session."
+            raise "Login cancelled" unless $stdin.gets
+
+            session.confirm_authenticated!
+          else
+            result = session.authenticate!
+            if result[:status] == :two_factor_required
+              say "Enter the 6-digit verification code:"
+              code = $stdin.gets&.strip
+              raise "No verification code provided" if code.to_s.empty?
+
+              session.submit_2fa_code(code)
+            end
+          end
+          say "Login verified. Chrome will retain the session in #{config.profile_dir}."
         rescue => e
           say_error "Login failed: #{e.message}"
           exit 1
@@ -51,7 +66,7 @@ module DoorLoopApp
         Useful for debugging, exploring data, or testing browser interactions.
 
         Available objects:
-          DoorLoopApp.session    — Playwright browser session
+          DoorLoopApp.session    — local agent-browser session
           DoorLoopApp.store      — SQLite model store
           DoorLoopApp.executor   — 3-layer data executor
           DoorLoopApp.configuration

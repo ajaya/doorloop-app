@@ -11,6 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       build-essential \
       libsqlite3-dev \
       git \
+      chromium \
     && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
     && rm -rf /var/lib/apt/lists/*
@@ -29,17 +30,15 @@ RUN bundle config set --local without "development" \
     && bundle config set --local frozen true \
     && bundle install --jobs "$(nproc)" --retry 3
 
-# ---- Node / Playwright ----
-FROM gems AS playwright
+# ---- Local agent-browser ----
+FROM gems AS browser
 
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
-
-# Install Chromium browser binary + all OS-level dependencies
-RUN npx playwright install chromium --with-deps
+RUN ./node_modules/.bin/agent-browser --version
 
 # ---- Final image ----
-FROM playwright AS app
+FROM browser AS app
 
 # Copy full application source
 COPY . .
@@ -50,8 +49,11 @@ VOLUME /data
 
 # Runtime environment
 ENV DOORLOOP_HEADLESS=true \
+    DOORLOOP_BROWSER_EXECUTABLE=/usr/bin/chromium \
+    DOORLOOP_BROWSER_ARGS="--no-sandbox,--disable-setuid-sandbox" \
     DOORLOOP_PROFILE_DIR=/data/chrome-profile \
-    DOORLOOP_DB_PATH=/data/doorloop.sqlite3
+    DOORLOOP_DB_PATH=/data/doorloop.sqlite3 \
+    DOORLOOP_API_REGISTRY=/data/api_registry.json
 
 ENTRYPOINT ["bundle", "exec", "bin/doorloop"]
 CMD ["server"]

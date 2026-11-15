@@ -47,8 +47,8 @@ module DoorLoopApp
           vision_prompt: nil
         },
         list_lease_transactions: {
-          api_class: nil,
-          api_method: nil,
+          api_class: "Api::Endpoints::LeaseTransactions",
+          api_method: :list_all,
           page_class: "Browser::Pages::LeaseTransactionsPage",
           page_method: :list_all,
           vision_prompt: "Extract all transactions. For each: id, type, amount, date, description, status."
@@ -64,10 +64,9 @@ module DoorLoopApp
         list_lease_transactions: "Models::LeaseTransaction"
       }.freeze
 
-      def initialize(session:, api_client: nil, token_store: nil, vision_client: nil, store: nil)
+      def initialize(session:, api_client: nil, vision_client: nil, store: nil)
         @session = session
         @api_client = api_client
-        @token_store = token_store
         @vision_client = vision_client
         @store = store
       end
@@ -77,13 +76,13 @@ module DoorLoopApp
           raise ArgumentError, "Unknown operation: #{operation}"
         end
 
-        # Layer 1: Direct API
-        if @api_client && @token_store&.valid? && config[:api_class]
+        # Layer 1: Replay discovered API requests inside authenticated Chrome.
+        if @api_client && config[:api_class]
           result = try_api(config, **params)
           return validate_and_store(operation, result) if result
         end
 
-        # Layer 2: Playwright DOM scraping
+        # Layer 2: Navigate once and capture the actual API response.
         @session.ensure_authenticated!
         result = try_snapshot(config, **params)
         return validate_and_store(operation, result) if result && (result.is_a?(String) || !result.empty?)
@@ -106,7 +105,7 @@ module DoorLoopApp
         endpoint.send(config[:api_method], **params)
       rescue Api::AuthenticationError
         $stderr.puts "[Executor] API auth failed, re-authenticating..."
-        refresh_token
+        @session.ensure_authenticated!
         begin
           klass = resolve_class(config[:api_class])
           endpoint = klass.new(@api_client)
@@ -143,15 +142,6 @@ module DoorLoopApp
       rescue => e
         $stderr.puts "[Executor] Vision fallback failed: #{e.message}"
         nil
-      end
-
-      def refresh_token
-        @token_store&.invalidate!
-        @session.authenticate!
-        token_data = @session.extract_auth_tokens
-        if token_data
-          @token_store&.update(token: token_data[:token], token_type: :bearer)
-        end
       end
 
       def validate_and_store(operation, result)

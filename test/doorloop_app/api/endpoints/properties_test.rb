@@ -25,11 +25,12 @@ class ApiEndpointsPropertiesTest < Minitest::Test
     result = properties.list_all
 
     assert_equal 1, result.length
-    assert_equal "123", result.first[:id]
-    assert_equal "Oak Apartments", result.first[:name]
-    assert_equal "123 Oak St, Oakland, CA, 94607", result.first[:address]
-    assert_equal "Multi-Family", result.first[:type]
-    assert_equal "4", result.first[:units]
+    assert_equal 123, result.first["id"]
+    assert_equal "Oak Apartments", result.first["name"]
+    assert_equal "123 Oak St", result.first["address"]
+    assert_equal "Multi-Family", result.first["type"]
+    assert_equal 4, result.first["unitCount"]
+    assert_equal "Oakland", result.first["city"]
   end
 
   def test_returns_nil_when_no_endpoint_configured
