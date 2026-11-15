@@ -30,7 +30,8 @@ Tests use Minitest + Mocha. No live DoorLoop connection needed — all browser c
 
 - `Dockerfile` — 4-stage build: `base` → `gems` → `playwright` → `app`
 - `docker-compose.yml` — two services: `mcp` (stdio server) and `login` (one-shot auth)
-- Base image: `ruby:4.0.1-slim-bookworm` + Node.js 22 + Chromium via `playwright install --with-deps`
+- Ruby: 4.0.9 locally (`.ruby-version`) and in Docker (`ruby:4.0.9-slim-bookworm`)
+- Node.js 22 + Chromium via `playwright install --with-deps`; npm Playwright 1.64.0 matches the Ruby client 1.64.x
 - `/data` volume maps to `~/.doorloop-mcp` on host (Chrome profile + SQLite)
 - Required Chromium flags in container: `PLAYWRIGHT_CHROMIUM_ARGS=--no-sandbox --disable-setuid-sandbox`
 - `mcp` service: `stdin_open: true`, `tty: false` (stdio transport requires open stdin, no TTY)
@@ -148,8 +149,9 @@ All models follow the `JsonBacked` pattern:
 | Tenant | `:tenants` | `"id"` | name, first_name, last_name, email, phone, property_id, lease_id, unit_ids, status, balance_due |
 | LeaseTransaction | `:lease_transactions` | `"id"` | lease_id, property_id, txn_type (`"type"`), amount, date, description, status |
 
-**Important**: `Sequel::Model.require_valid_table = false` is set in `lib/doorloop_app.rb` so models
-can be autoloaded by Zeitwerk before `setup!(db)` is called.
+**Important**: `Models::Base` uses an isolated in-memory SQLite database with
+`require_valid_table = false` so models can be autoloaded by Zeitwerk before
+`setup!(db)` binds them to the Store database. Global Sequel settings are unchanged.
 
 ### DB Path
 Default: `~/.doorloop-mcp/doorloop.sqlite3`

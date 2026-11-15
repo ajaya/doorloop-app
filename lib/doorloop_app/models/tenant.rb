@@ -2,7 +2,7 @@
 
 module DoorLoopApp
   module Models
-    class Tenant < Sequel::Model
+    class Tenant < Base
       include JsonBacked
 
       TABLE = :tenants

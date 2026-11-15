@@ -4,10 +4,6 @@ require "zeitwerk"
 require "mcp"
 require "sequel"
 
-# Allow Sequel::Model subclasses to be defined before their tables exist.
-# Tables are created in setup!(db) via migrate!, then bound via set_dataset.
-Sequel::Model.require_valid_table = false
-
 module DoorLoopApp
   class << self
     def loader

@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require "agentmail"
-require "cgi"
+require "cgi/escape"
 
 module DoorLoopApp
   module AgentMail

@@ -2,7 +2,7 @@
 
 module DoorLoopApp
   module Models
-    class Unit < Sequel::Model
+    class Unit < Base
       include JsonBacked
 
       TABLE = :units

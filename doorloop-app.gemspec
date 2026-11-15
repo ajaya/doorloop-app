@@ -9,7 +9,7 @@ Gem::Specification.new do |spec|
   spec.summary = "MCP server for DoorLoop property management"
   spec.description = "A Ruby MCP server that lets AI assistants interact with DoorLoop via Playwright browser automation"
   spec.license = "MIT"
-  spec.required_ruby_version = ">= 3.4"
+  spec.required_ruby_version = ">= 4.0.9"
 
   spec.files = Dir["lib/**/*", "bin/*", "LICENSE", "README.md"]
   spec.bindir = "bin"
@@ -19,12 +19,11 @@ Gem::Specification.new do |spec|
   spec.add_dependency "ruby-anthropic", "~> 0.4"
   spec.add_dependency "dotenv", "~> 3.0"
   spec.add_dependency "faraday", "~> 2.0"
-  spec.add_dependency "playwright-ruby-client", "~> 1.49"
-  spec.add_dependency "instructor-rb"
-  spec.add_dependency "mcp", ">= 0.8.0"
+  spec.add_dependency "playwright-ruby-client", "~> 1.64.0"
+  spec.add_dependency "mcp", "~> 1.10"
   spec.add_dependency "rack", "~> 3.1"
   spec.add_dependency "rackup", "~> 2.2"
-  spec.add_dependency "ruby_llm", "~> 1.0"
+  spec.add_dependency "ruby_llm", "~> 2.2"
   spec.add_dependency "sequel", "~> 5.0"
   spec.add_dependency "sqlite3", "~> 2.0"
   spec.add_dependency "thor", "~> 1.3"
@@ -33,9 +32,9 @@ Gem::Specification.new do |spec|
 
   spec.add_development_dependency "awesome_print"
   spec.add_development_dependency "irb"
-  spec.add_development_dependency "minitest", "~> 5.0"
-  spec.add_development_dependency "minitest-reporters", "~> 1.7"
-  spec.add_development_dependency "mocha", "~> 2.0"
+  spec.add_development_dependency "minitest", "~> 6.1"
+  spec.add_development_dependency "minitest-reporters", "~> 1.8"
+  spec.add_development_dependency "mocha", "~> 3.1"
   spec.add_development_dependency "pry"
   spec.add_development_dependency "rake", "~> 13.0"
 end

@@ -30,7 +30,7 @@ All fetched data is cached in a local SQLite database (`~/.doorloop-mcp/doorloop
 
 ## Requirements
 
-- Ruby 3.4+
+- Ruby 4.0.9 (see `.ruby-version`)
 - Node.js (for Playwright browser binaries)
 - A DoorLoop account
 
@@ -39,6 +39,7 @@ All fetched data is cached in a local SQLite database (`~/.doorloop-mcp/doorloop
 ```bash
 # Install dependencies
 bundle install
+npm ci
 npx playwright install chromium
 
 # Configure environment
@@ -101,7 +102,7 @@ The image bundles Ruby 4.0, Node.js 22, Chromium, and all Playwright dependencie
 
 | Stage | Base | Purpose |
 |-------|------|---------|
-| `base` | `ruby:4.0.1-slim-bookworm` | Ruby + Node.js 22 + build deps |
+| `base` | `ruby:4.0.9-slim-bookworm` | Ruby + Node.js 22 + build deps |
 | `gems` | `base` | Bundle install (without development group) |
 | `playwright` | `gems` | `npm ci` + `playwright install chromium --with-deps` |
 | `app` | `playwright` | Full source + `/data` volume |
