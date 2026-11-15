@@ -44,7 +44,7 @@ FROM browser AS app
 COPY . .
 
 # Data volume: Chrome profile + SQLite DB persist here
-RUN mkdir -p /data
+RUN mkdir -p /data && ln -s /data /root/.agent-browser
 VOLUME /data
 
 # Runtime environment

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Support observed DoorLoop POST-based read/search endpoints, preserving JSON filters and the `tokenId` authentication header.
+- Enable encrypted native session restore for session-only cookies and tab storage; verify both across a full process/browser restart.
+
 - Replace Playwright with pinned, free, local agent-browser 0.43.0.
 - Reuse the Chrome profile across CLI/MCP processes and add `login --manual` for visible authentication and 2FA.
 - Execute DoorLoop API GET/POST/PUT requests inside authenticated Chrome with observed authorization/CSRF headers; remove copied-token HTTP requests.

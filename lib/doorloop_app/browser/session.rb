@@ -194,17 +194,17 @@ module DoorLoopApp
 
       def capture_api_headers
         @browser.command("network", "requests").fetch("requests", []).each do |entry|
-          next unless entry["status"] == 200 && entry["method"] == "GET"
+          next unless entry["status"] == 200 && %w[GET POST].include?(entry["method"])
 
           observe_response(Response.new(url: entry["url"], status: entry["status"],
-                                        body: nil, headers: entry["headers"] || {}, method: "GET"))
+                                        body: nil, headers: entry["headers"] || {}, method: entry["method"]))
         end
       end
 
       def observe_response(response)
         api_url(response.url) # Never copy authentication headers across origins.
         response.headers.each do |name, value|
-          @api_headers[name.downcase] = value if name.match?(/\A(?:authorization|x-.+)\z/i)
+          @api_headers[name.downcase] = value if name.match?(/\A(?:authorization|tokenid|x-.+)\z/i)
         end
         registry.record_response(response)
         true

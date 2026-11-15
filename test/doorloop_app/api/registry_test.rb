@@ -4,6 +4,21 @@ require "test_helper"
 require "tmpdir"
 
 class RegistryTest < Minitest::Test
+  def test_records_post_based_read_routes_with_their_search_body
+    registry = DoorLoopApp::Api::Registry.new(path: File.join(@tmpdir, "post.json"))
+    response = DoorLoopApp::Browser::Response.new(
+      url: "#{DoorLoopApp.configuration.url}/api/properties/custom-fields",
+      status: 200, method: "POST", body: '{"data":[]}',
+      headers: { "tokenId" => "private-token" },
+      request_body: '{"filter_active":"true","page_number":1,"page_size":50}'
+    )
+    registry.record_response(response)
+    entry = DoorLoopApp::Api::Registry.new(path: File.join(@tmpdir, "post.json")).endpoint("list_properties")
+    assert_equal "POST", entry["method"]
+    assert_equal({ "filter_active" => "true", "page_number" => 1, "page_size" => 50 }, entry["request_body"])
+    refute_includes File.read(File.join(@tmpdir, "post.json")), "private-token"
+  end
+
   def test_records_discovered_routes_without_persisting_authentication
     Dir.mktmpdir("registry") do |dir|
       path = File.join(dir, "registry.json")

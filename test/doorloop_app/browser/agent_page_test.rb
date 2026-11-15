@@ -12,7 +12,7 @@ class AgentPageTest < Minitest::Test
     ] })
     driver.expects(:command).with("network", "request", "r1").returns({
       "url" => "https://example.test/api/properties", "status" => 200, "method" => "GET",
-      "headers" => { "Authorization" => "Bearer test" }, "responseBody" => '{"data":[{"id":"p1"}]}'
+      "headers" => { "Authorization" => "Bearer test" }, "responseBody" => '{"data":[{"id":"p1"}]}', "postData" => '{"page_size":50}'
     })
     captured = nil
     page = DoorLoopApp::Browser::AgentPage.new(driver, on_response: ->(response) { captured = response })
@@ -23,5 +23,6 @@ class AgentPageTest < Minitest::Test
     assert_equal "p1", JSON.parse(response.body)["data"].first["id"]
     assert_same response, captured
     assert_equal "Bearer test", response.headers["Authorization"]
+    assert_equal '{"page_size":50}', response.request_body
   end
 end

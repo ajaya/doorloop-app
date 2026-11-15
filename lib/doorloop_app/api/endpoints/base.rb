@@ -15,7 +15,12 @@ module DoorLoopApp
           return nil unless @endpoint
 
           query = (@endpoint["query_params"] || {}).reject { |key, _| omit.include?(key) }
-          data = @client.get(@endpoint.fetch("path"), params: query.merge(params))
+          if @endpoint["method"] == "POST"
+            body = (@endpoint["request_body"] || {}).reject { |key, _| omit.include?(key) }.merge(params)
+            data = @client.post(@endpoint.fetch("path"), params: query, body: body)
+          else
+            data = @client.get(@endpoint.fetch("path"), params: query.merge(params))
+          end
           return data if data.is_a?(Array)
 
           key = @endpoint.dig("response_shape", "data_key") || "data"

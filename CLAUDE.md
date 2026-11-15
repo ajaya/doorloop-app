@@ -97,9 +97,10 @@ DoorLoopApp.eager_load!  # Zeitwerk eager load (called by entry points)
 ## Persistent Sessions and Browser API
 
 - `bin/doorloop login --manual` opens visible local Chrome; credentials can be entered there and 2FA completed manually. The profile remains at `DOORLOOP_PROFILE_DIR` across process/browser restarts.
+- Stable `--restore` persistence supplements the Chrome profile, including session-only cookies and sessionStorage. Native state is encrypted using the owner-only per-profile `doorloop-state.key`.
 - `Browser::AgentBrowser` invokes the pinned free local CLI. No paid provider, auto-connection or inherited agent-browser environment is used.
 - `Browser::Session#request` executes same-origin `/api/` fetches with HTTP-only cookies and observed authorization/CSRF headers; redirects are rejected and writes never automatically retried.
-- `Api::Registry#record_response` persists discovered GET routes without tokens/headers. CLI and MCP both construct the browser API client.
+- `Api::Registry#record_response` persists discovered GET/POST read routes and JSON search filters without tokens/headers. CLI and MCP both construct the browser API client.
 - `api_token.json` and `Api::TokenStore` have been retired. Do not bring back token copying or separate DoorLoop HTTP requests.
 - Paid vision/fuzzy matching require explicit `DOORLOOP_ALLOW_PAID_AI=true`; browser data retrieval works without them.
 - Real regression coverage: `RUN_BROWSER_TESTS=1 bundle exec rake test` verifies a full process/browser restart against a local authenticated fixture.

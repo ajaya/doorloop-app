@@ -23,6 +23,8 @@ class AgentBrowserTest < Minitest::Test
     Open3.expects(:capture3).with do |env, *args, **options|
       assert_nil env["AGENT_BROWSER_PROVIDER"]
       assert_equal({}, JSON.parse(File.read(args[args.index("--config") + 1])))
+      assert_equal @driver.session_name, args[args.index("--restore") + 1]
+      assert_match(/\A[0-9a-f]{64}\z/, env["AGENT_BROWSER_ENCRYPTION_KEY"])
       assert_includes args, @config.profile_dir
       assert_includes args, "--no-auto-connect"
       assert_equal "", args[args.index("--provider") + 1]

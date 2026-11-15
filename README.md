@@ -59,11 +59,13 @@ bundle exec bin/doorloop properties list --refresh
 
 ### Persistent authentication and browser API access
 
+Session-only cookies and tab session storage are also saved/restored by agent-browser using its stable `--restore` key. Saved state is encrypted with a per-profile key (`doorloop-state.key`, mode 0600); keep that key with the profile. Docker persists the native restore files in the same `/data` volume.
+
 The default profile remains `~/.doorloop-mcp/chrome-profile`, so an existing profile is reused in place. A successful `login --manual` closes Chrome cleanly, keeping cookies, local storage and trusted-device state for later CLI/MCP processes. Select DoorLoop's “Don't ask again” option during 2FA when available. DoorLoop can still expire/revoke a session or require 2FA again; the app reports this instead of claiming the session is authenticated.
 
 `DOORLOOP_PROFILE_DIR` selects a different persistent profile. `DOORLOOP_BROWSER_EXECUTABLE` selects an installed browser. `DOORLOOP_AGENT_BROWSER_PATH` selects a globally installed CLI when the project-local npm binary is unavailable. Keep using the same profile and OS account; Chrome profiles should not be open in another Chrome process or copied between operating systems.
 
-Routes are saved at `~/.doorloop-mcp/api_registry.json` (override with `DOORLOOP_API_REGISTRY`). The registry stores paths and query parameters, with no authentication headers. The old `api_token.json` is no longer read or written.
+Routes are saved at `~/.doorloop-mcp/api_registry.json` (override with `DOORLOOP_API_REGISTRY`). The registry stores paths, read methods, query parameters and JSON search filters, with no authentication headers. The old `api_token.json` is no longer read or written.
 
 Programmatic API calls run in the browser, with same-origin checks and redirects disabled:
 

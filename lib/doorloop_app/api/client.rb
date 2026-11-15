@@ -16,8 +16,10 @@ module DoorLoopApp
         @session.request(:get, path, params: params)
       end
 
-      def post(path, body: {})
-        @session.request(:post, path, body: body)
+      def post(path, body: {}, params: {})
+        options = { body: body }
+        options[:params] = params unless params.empty?
+        @session.request(:post, path, **options)
       end
 
       def put(path, body: {})

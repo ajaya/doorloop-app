@@ -17,11 +17,17 @@ class AgentBrowserIntegrationTest < Minitest::Test
         response["Content-Type"] = "text/html"
         if request.path == "/login"
           response["Set-Cookie"] = "trusted_device=remembered; HttpOnly; SameSite=Lax; Max-Age=86400; Path=/"
-          response.body = '<title>Fixture login</title><script>localStorage.setItem("trusted", "yes")</script>'
+          cookie = WEBrick::Cookie.new("browser_session", "alive")
+          cookie.path = "/"
+          response.cookies << cookie
+          response.body = '<title>Fixture login</title><script>localStorage.setItem("trusted", "yes"); sessionStorage.setItem("tab_session", "alive")</script>'
         elsif request.path.start_with?("/api/")
           response["Content-Type"] = "application/json"
-          if request["Cookie"].to_s.include?("trusted_device=remembered") && request["Authorization"] == "Bearer fixture" && request["X-CSRF-Token"] == "fixture-csrf"
-            mutations << JSON.parse(request.body) if request.request_method == "POST"
+          if request["Cookie"].to_s.include?("trusted_device=remembered") && request["Authorization"] == "Bearer fixture" && request["X-CSRF-Token"] == "fixture-csrf" && request["tokenId"] == "fixture-token-id"
+            mutations << JSON.parse(request.body) if request.path == "/api/test-mutations" && request.request_method == "POST"
+            if request.path == "/api/properties/custom-fields" && request.request_method == "POST"
+              raise "search body was changed" unless JSON.parse(request.body) == { "filter_active" => "true", "page_number" => 1, "page_size" => 50 }
+            end
             response.body = JSON.generate({ data: [{ id: "p1", name: "Fixture property", extra: { preserved: true } }], query: request.query_string })
           else
             response.status = 401
@@ -30,7 +36,7 @@ class AgentBrowserIntegrationTest < Minitest::Test
         elsif request["Cookie"].to_s.include?("trusted_device=remembered")
           response.body = <<~HTML
             <title>Dashboard</title><input id="memo"><input id="remember" type="checkbox"><button onclick="window.clicked=true">Sign in</button>
-            <script>fetch('/api/properties/custom-fields', {headers: {Authorization: 'Bearer fixture', 'X-CSRF-Token': 'fixture-csrf'}})</script>
+            <script>fetch('/api/properties/custom-fields', {method: 'POST', headers: {Authorization: 'Bearer fixture', 'X-CSRF-Token': 'fixture-csrf', tokenId: 'fixture-token-id', 'Content-Type': 'application/json'}, body: JSON.stringify({filter_active: 'true', page_number: 1, page_size: 50})})</script>
           HTML
         else
           response.status = 302
@@ -57,6 +63,8 @@ class AgentBrowserIntegrationTest < Minitest::Test
           session.navigate("/login") if ARGV[2] == "login"
           session.ensure_authenticated!
           abort "trusted-device storage was lost" unless session.evaluate('localStorage.getItem("trusted")') == "yes"
+          abort "session-only cookie was lost" unless session.browser.cookies.any? { |cookie| cookie["name"] == "browser_session" && cookie["value"] == "alive" }
+          abort "tab session storage was lost" unless session.evaluate('sessionStorage.getItem("tab_session")') == "alive"
           captured = session.page.expect_response(->(r) { r.url.include?("/api/properties/") && r.status == 200 }) { session.navigate("/") }
           abort "network response missing" unless JSON.parse(captured.body)["data"].first["id"] == "p1"
           client = DoorLoopApp::Api::Client.new(session: session)

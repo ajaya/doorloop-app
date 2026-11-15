@@ -3,6 +3,20 @@
 require "test_helper"
 
 class ApiEndpointsPropertiesTest < Minitest::Test
+  def test_replays_post_search_without_changing_filters_or_fields
+    registry = mock("registry")
+    registry.stubs(:endpoint).with("list_properties").returns({
+      "path" => "/api/properties/custom-fields", "method" => "POST", "query_params" => {},
+      "request_body" => { "filter_active" => "true", "page_number" => 1, "page_size" => 50 }
+    })
+    client = mock("client")
+    client.stubs(:registry).returns(registry)
+    client.expects(:post).with("/api/properties/custom-fields", params: {}, body: {
+      "filter_active" => "true", "page_number" => 1, "page_size" => 50
+    }).returns({ "data" => [{ "id" => "p1", "extra" => "kept" }], "total" => 1 })
+    assert_equal [{ "id" => "p1", "extra" => "kept" }], DoorLoopApp::Api::Endpoints::Properties.new(client).list_all
+  end
+
   def test_list_all_maps_api_response
     endpoint_config = {
       "path" => "/api/properties",

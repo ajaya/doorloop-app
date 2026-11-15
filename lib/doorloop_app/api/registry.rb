@@ -34,10 +34,11 @@ module DoorLoopApp
         @data.key?("endpoints") && !endpoints.empty?
       end
 
-      # Persist only route metadata. Browser cookies and captured headers stay
+      # Persist only known read-route metadata. Browser cookies and captured headers stay
       # in Chrome/the current process and never enter this file.
       def record_response(response)
-        return unless response.method == "GET" && response.status == 200
+        return unless %w[GET POST].include?(response.method) && response.status == 200
+        return if response.method == "POST" && response.request_body.nil?
 
         uri = URI.parse(response.url)
         base = URI.parse(DoorLoopApp.configuration.url)
@@ -55,6 +56,13 @@ module DoorLoopApp
 
         params = URI.decode_www_form(uri.query || "").reject { |key, _| key.match?(/token|password|secret|authorization|session|cookie/i) }.to_h
         entry = { "path" => uri.path, "query_params" => params, "response_shape" => { "data_key" => "data" } }
+        entry["method"] = response.method
+        if response.method == "POST"
+          body = response.request_body.is_a?(String) ? JSON.parse(response.request_body) : response.request_body
+          return unless body.is_a?(Hash)
+
+          entry["request_body"] = without_credentials(body)
+        end
         return if endpoint(name) == entry
 
         @data["endpoints"] ||= {}
@@ -62,17 +70,27 @@ module DoorLoopApp
         FileUtils.mkdir_p(File.dirname(@path))
         temporary = "#{@path}.#{Process.pid}.tmp"
         metadata = { "endpoints" => endpoints.transform_values do |route|
-          route.slice("path", "response_shape").merge("query_params" => (route["query_params"] || {}).reject do |key, _|
+          route.slice("path", "method", "request_body", "response_shape").merge("query_params" => (route["query_params"] || {}).reject do |key, _|
             key.match?(/token|password|secret|authorization|session|cookie/i)
           end)
         end }
         File.open(temporary, File::WRONLY | File::CREAT | File::TRUNC, 0o600) { |file| file.write(JSON.pretty_generate(metadata)) }
         File.rename(temporary, @path)
-      rescue URI::InvalidURIError, SystemCallError => e
+      rescue URI::InvalidURIError, JSON::ParserError, SystemCallError => e
         warn "Could not save discovered API route (#{e.class})"
       end
 
       private
+
+      def without_credentials(value)
+        case value
+        when Hash
+          value.reject { |key, _| key.match?(/token|password|secret|authorization|session|cookie/i) }
+               .transform_values { |item| without_credentials(item) }
+        when Array then value.map { |item| without_credentials(item) }
+        else value
+        end
+      end
 
       def load_registry
         return {} unless File.exist?(@path)

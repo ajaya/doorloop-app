@@ -77,7 +77,8 @@ module DoorLoopApp
 
       def response(entry)
         Response.new(url: entry["url"].to_s, status: entry["status"].to_i,
-                     body: entry["responseBody"], headers: entry["headers"] || {}, method: entry["method"] || "GET")
+                     body: entry["responseBody"], headers: entry["headers"] || {}, method: entry["method"] || "GET",
+                     request_body: entry["postData"])
       end
     end
   end

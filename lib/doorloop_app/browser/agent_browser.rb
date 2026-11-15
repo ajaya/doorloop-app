@@ -4,6 +4,7 @@ require "open3"
 require "json"
 require "digest"
 require "fileutils"
+require "securerandom"
 
 module DoorLoopApp
   module Browser
@@ -24,13 +25,20 @@ module DoorLoopApp
           FileUtils.mkdir_p(@profile, mode: 0o700)
           config_path = File.join(@profile, "doorloop-agent-browser.json")
           File.write(config_path, "{}\n", mode: "w", perm: 0o600)
+          key_path = File.join(@profile, "doorloop-state.key")
+          begin
+            File.open(key_path, File::WRONLY | File::CREAT | File::EXCL, 0o600) { |file| file.write(SecureRandom.hex(32)) }
+          rescue Errno::EEXIST
+            # Reuse the same encryption key after browser/process restarts.
+          end
           # Do not inherit a paid provider, remote CDP endpoint, or unrelated
           # agent's session from the host environment.
           env = ENV.keys.grep(/\AAGENT_BROWSER_/).to_h { |key| [key, nil] }
           env["AGENT_BROWSER_NO_VERSION_CHECK"] = "1"
           env["AGENT_BROWSER_DEFAULT_TIMEOUT"] = timeout.to_s
+          env["AGENT_BROWSER_ENCRYPTION_KEY"] = File.read(key_path).strip
           argv = [@config.agent_browser_path, "--config", config_path, "--json", "--session", session_name,
-                  "--profile", @profile, "--provider", "", "--no-auto-connect",
+                  "--profile", @profile, "--restore", session_name, "--provider", "", "--no-auto-connect",
                   "--engine", "chrome"]
           argv += ["--headed"] unless @config.headless
           argv += ["--executable-path", @config.browser_executable] if @config.browser_executable
