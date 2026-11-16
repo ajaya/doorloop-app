@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Serve modern MCP 2026-07-28 and legacy clients over tested stdio and stateless Streamable HTTP; add structured tool results, read-only annotations and strict argument schemas.
+- Upgrade to official Anthropic SDK 2.8 with prompt caching and current Claude Haiku/Sonnet 5.5 defaults; paid fallbacks remain opt-in.
+- Document current Claude/Codex setup, add a loopback-published Docker HTTP service, and fix CLI startup from other working directories.
+
 - Support observed DoorLoop POST-based read/search endpoints, preserving JSON filters and the `tokenId` authentication header.
 - Enable encrypted native session restore for session-only cookies and tab storage; verify both across a full process/browser restart.
 

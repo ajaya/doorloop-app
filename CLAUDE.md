@@ -74,6 +74,10 @@ DoorLoopApp.eager_load!  # Zeitwerk eager load (called by entry points)
 
 ### MCP Transport
 
+- Official MCP SDK 1.10 serves both 2026-07-28 per-request metadata/discovery and legacy initialization. Never pin a modern revision into the legacy handshake.
+- HTTP is stateless Streamable HTTP with JSON responses; stdio uses newline-delimited JSON-RPC with clean stdout. Both have real process tests in `test/integration/mcp_transports_test.rb`.
+- See `docs/mcp-clients.md` for Claude/Codex setup. Browser login persistence is separate from MCP transport state.
+
 `Server.run` supports two transports: **stdio** (default, JSON-RPC over stdin/stdout) and **HTTP** (`--http` flag, StreamableHTTPTransport via Rack/WEBrick on `/mcp`, default port 9293).
 
 ---
@@ -213,8 +217,8 @@ Default: `~/.doorloop-mcp/doorloop.sqlite3`
 
 `lib/doorloop_app/llm/tenant_matcher.rb` — used by `PaymentPage#find_tenant` when DB search fails.
 
-- Model: `claude-haiku-4-5-20251001` (default), overridable via `DOORLOOP_LLM_MODEL`
-- Uses `ruby_llm` gem → `RubyLLM.chat(model:).ask(prompt)`
+- Model: `claude-haiku-5-5` (default), overridable via `DOORLOOP_LLM_MODEL`
+- Uses official `anthropic` SDK 2.8 via `client.messages.create`, with prompt caching
 - Requires both `DOORLOOP_ALLOW_PAID_AI=true` and `ANTHROPIC_API_KEY` in `.env.local`
 - Private `call_llm(prompt)` method is stubbed in tests
 
@@ -267,8 +271,8 @@ AGENTMAIL_INBOX_ID=...
 # Optional paid Claude AI (off by default)
 DOORLOOP_ALLOW_PAID_AI=false
 ANTHROPIC_API_KEY=...
-DOORLOOP_LLM_MODEL=claude-haiku-4-5-20251001     # for tenant fuzzy matching
-DOORLOOP_VISION_MODEL=claude-sonnet-4-20250514   # for vision page extraction
+DOORLOOP_LLM_MODEL=claude-haiku-5-5     # for tenant fuzzy matching
+DOORLOOP_VISION_MODEL=claude-sonnet-5-5   # for vision page extraction
 
 # Payment confirmation email recipient (requires AgentMail above)
 DOORLOOP_CONFIRMATION_EMAIL_TO=...

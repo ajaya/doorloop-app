@@ -4,6 +4,7 @@ module DoorLoopApp
   module Tools
     class ListTenantsTool < Tool
       tool "doorloop_list_tenants",
+        read_only: true,
         description: "List all tenants in DoorLoop. Returns tenant names, emails, phones, and associated properties and leases.",
         input_schema: {
           properties: {

@@ -21,12 +21,13 @@ class VisionClientTest < Minitest::Test
     mock_anthropic.stubs(:messages).returns(mock_messages)
 
     content_block = mock("content_block")
+    content_block.stubs(:type).returns(:text)
     content_block.stubs(:text).returns('{"data": [{"name": "Oak Apartments", "id": "123"}]}')
     response = mock("response")
     response.stubs(:content).returns([content_block])
 
     mock_messages.expects(:create).returns(response)
-    Anthropic::Client.expects(:new).with(access_token: "test_key").returns(mock_anthropic)
+    Anthropic::Client.expects(:new).with(api_key: "test_key").returns(mock_anthropic)
 
     client = DoorLoopApp::Vision::Client.new
     result = client.extract_from_text(
@@ -45,12 +46,13 @@ class VisionClientTest < Minitest::Test
     mock_anthropic.stubs(:messages).returns(mock_messages)
 
     content_block = mock("content_block")
+    content_block.stubs(:type).returns(:text)
     content_block.stubs(:text).returns("```json\n{\"data\": [{\"name\": \"Test\"}]}\n```")
     response = mock("response")
     response.stubs(:content).returns([content_block])
 
     mock_messages.expects(:create).returns(response)
-    Anthropic::Client.expects(:new).with(access_token: "test_key").returns(mock_anthropic)
+    Anthropic::Client.expects(:new).with(api_key: "test_key").returns(mock_anthropic)
 
     client = DoorLoopApp::Vision::Client.new
     result = client.extract_from_text(page_text: "test", prompt: "test")
@@ -64,12 +66,13 @@ class VisionClientTest < Minitest::Test
     mock_anthropic.stubs(:messages).returns(mock_messages)
 
     content_block = mock("content_block")
+    content_block.stubs(:type).returns(:text)
     content_block.stubs(:text).returns("not valid json at all")
     response = mock("response")
     response.stubs(:content).returns([content_block])
 
     mock_messages.expects(:create).returns(response)
-    Anthropic::Client.expects(:new).with(access_token: "test_key").returns(mock_anthropic)
+    Anthropic::Client.expects(:new).with(api_key: "test_key").returns(mock_anthropic)
 
     client = DoorLoopApp::Vision::Client.new
     result = client.extract_from_text(page_text: "test", prompt: "test")

@@ -61,12 +61,12 @@ module DoorLoopApp
       )
     end
 
-    def self.run(http: false, port: DEFAULT_HTTP_PORT)
+    def self.run(http: false, port: DEFAULT_HTTP_PORT, host: "127.0.0.1")
       server = build
-      print_banner(server, http:, port:)
+      print_banner(server, http:, port:, host:)
 
       if http
-        start_http(server, port)
+        start_http(server, port, host: host)
       else
         start_stdio(server)
       end
@@ -77,11 +77,13 @@ module DoorLoopApp
       transport.open
     end
 
-    def self.start_http(server, port)
+    def self.start_http(server, port, host: "127.0.0.1")
       require "rack"
       require "webrick"
 
-      transport = ::MCP::Server::Transports::StreamableHTTPTransport.new(server)
+      transport = ::MCP::Server::Transports::StreamableHTTPTransport.new(
+        server, stateless: true, enable_json_response: true
+      )
       server.transport = transport
 
       app = ->(env) { transport.handle_request(Rack::Request.new(env)) }
@@ -89,7 +91,7 @@ module DoorLoopApp
       require "rackup/handler/webrick"
       Rackup::Handler::WEBrick.run(
         Rack::Builder.new { map("/mcp") { run app } },
-        Host: "127.0.0.1",
+        Host: host,
         Port: port,
         Logger: WEBrick::Log.new($stderr, WEBrick::Log::WARN),
         AccessLog: []
@@ -106,7 +108,7 @@ module DoorLoopApp
       color? ? code : ""
     end
 
-    def self.print_banner(server, http: false, port: DEFAULT_HTTP_PORT)
+    def self.print_banner(server, http: false, port: DEFAULT_HTTP_PORT, host: "127.0.0.1")
       bold = c("\e[1m")
       dim = c("\e[2m")
       reset = c("\e[0m")
@@ -139,7 +141,7 @@ module DoorLoopApp
 
       warn ""
       if http
-        warn "#{green}Ready#{reset} #{dim}— listening on http://127.0.0.1:#{port}/mcp#{reset}"
+        warn "#{green}Ready#{reset} #{dim}— listening on http://#{host}:#{port}/mcp#{reset}"
       else
         warn "#{green}Ready#{reset} #{dim}— waiting for JSON-RPC requests on stdin...#{reset}"
       end

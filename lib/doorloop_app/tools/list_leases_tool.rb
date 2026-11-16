@@ -4,6 +4,7 @@ module DoorLoopApp
   module Tools
     class ListLeasesTool < Tool
       tool "doorloop_list_leases",
+        read_only: true,
         description: "List leases in DoorLoop. Optionally filter by property. Returns name, status, rent, balance, start/end dates.",
         input_schema: {
           properties: {

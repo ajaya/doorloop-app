@@ -13,6 +13,17 @@ services:
       - ./.env.local:/app/.env.local:ro
     command: ["server"]
 
+  # Shared HTTP endpoint for Claude/Codex, published only on host loopback.
+  # docker compose --profile http up mcp-http
+  mcp-http:
+    extends:
+      service: mcp
+    profiles: ["http"]
+    stdin_open: false
+    ports:
+      - "127.0.0.1:9293:9293"
+    command: ["server", "--http", "--host", "0.0.0.0", "--port", "9293"]
+
   # Interactive login (run once to create/refresh Chrome session)
   # docker compose run --rm login
   login:

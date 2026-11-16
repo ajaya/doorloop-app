@@ -24,8 +24,8 @@ module DoorLoopApp
       @agentmail_inbox_id = ENV.fetch("AGENTMAIL_INBOX_ID", nil)
       @anthropic_api_key = ENV.fetch("ANTHROPIC_API_KEY", nil)
       @allow_paid_ai = ENV.fetch("DOORLOOP_ALLOW_PAID_AI", "false") == "true"
-      @vision_model = ENV.fetch("DOORLOOP_VISION_MODEL", "claude-sonnet-4-20250514")
-      @llm_model    = ENV.fetch("DOORLOOP_LLM_MODEL", "claude-haiku-4-5-20251001")
+      @vision_model = ENV.fetch("DOORLOOP_VISION_MODEL", "claude-sonnet-5-5")
+      @llm_model    = ENV.fetch("DOORLOOP_LLM_MODEL", "claude-haiku-5-5")
       @api_registry_path = ENV.fetch("DOORLOOP_API_REGISTRY", File.expand_path("~/.doorloop-mcp/api_registry.json"))
       @db_path = ENV.fetch("DOORLOOP_DB_PATH", File.join(File.expand_path("~/.doorloop-mcp"), "doorloop.sqlite3"))
 
@@ -43,7 +43,7 @@ module DoorLoopApp
     end
 
     def vision_configured?
-        allow_paid_ai && !anthropic_api_key.to_s.empty?
+      allow_paid_ai && !anthropic_api_key.to_s.empty?
     end
 
     def email_notifications_configured?

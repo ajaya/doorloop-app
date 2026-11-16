@@ -16,13 +16,12 @@ Gem::Specification.new do |spec|
   spec.executables = ["doorloop"]
 
   spec.add_dependency "agentmail", "~> 0.1"
-  spec.add_dependency "ruby-anthropic", "~> 0.4"
+  spec.add_dependency "anthropic", "~> 2.8"
   spec.add_dependency "dotenv", "~> 3.0"
   spec.add_dependency "faraday", "~> 2.0"
   spec.add_dependency "mcp", "~> 1.10"
   spec.add_dependency "rack", "~> 3.1"
   spec.add_dependency "rackup", "~> 2.2"
-  spec.add_dependency "ruby_llm", "~> 2.2"
   spec.add_dependency "sequel", "~> 5.0"
   spec.add_dependency "sqlite3", "~> 2.0"
   spec.add_dependency "thor", "~> 1.3"

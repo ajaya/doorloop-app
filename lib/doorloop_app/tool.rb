@@ -27,11 +27,13 @@ module DoorLoopApp
         @tools ||= []
       end
 
-      def tool(name, description:, input_schema: {}, &handler)
+      def tool(name, description:, input_schema: {}, read_only: false, &handler)
         tools << {
           name:,
           description:,
           input_schema: normalize_schema(input_schema),
+          annotations: { read_only_hint: read_only, destructive_hint: false,
+                         idempotent_hint: read_only, open_world_hint: true },
           handler:
         }
       end
@@ -51,11 +53,12 @@ module DoorLoopApp
 
       # Response helpers — available to handler blocks via lexical scope (self == subclass)
       def text_response(data)
-        ::MCP::Tool::Response.new([{ type: "text", text: JSON.pretty_generate(data) }])
+        structured = data.is_a?(Hash) ? data : { data: data }
+        ::MCP::Tool::Response.new([{ type: "text", text: JSON.pretty_generate(data) }], structured_content: structured)
       end
 
       def message_response(msg)
-        ::MCP::Tool::Response.new([{ type: "text", text: msg }])
+        ::MCP::Tool::Response.new([{ type: "text", text: msg }], structured_content: { message: msg })
       end
 
       def error_response(msg)
@@ -67,7 +70,8 @@ module DoorLoopApp
       def normalize_schema(schema)
         result = {
           type: "object",
-          properties: schema[:properties] || {}
+          properties: schema[:properties] || {},
+          additionalProperties: false
         }
         required = schema[:required]
         result[:required] = required if required && !required.empty?
@@ -79,6 +83,7 @@ module DoorLoopApp
         ::MCP::Tool.define(
           name: t[:name],
           description: t[:description],
+          annotations: t[:annotations],
           input_schema: t[:input_schema]
         ) do |**kwargs|
           server_context = kwargs.delete(:server_context) || {}

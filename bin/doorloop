@@ -1,10 +1,14 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
-require "bundler/setup"
+app_root = File.expand_path("..", __dir__)
+gemfile = File.join(app_root, "Gemfile")
+ENV["BUNDLE_GEMFILE"] ||= gemfile if File.file?(gemfile)
+require "bundler"
+Bundler.ui.silence { Bundler.setup }
 require "dotenv"
 env = ENV.fetch("DOORLOOP_ENV", "development")
-Dotenv.load(".env.#{env}.local", ".env.local", ".env.#{env}", ".env")
+Dotenv.load(*[".env.#{env}.local", ".env.local", ".env.#{env}", ".env"].map { |path| File.join(app_root, path) })
 require "doorloop_app"
 
 $0 = "doorloop"

@@ -4,6 +4,7 @@ module DoorLoopApp
   module Tools
     class ListUnitsTool < Tool
       tool "doorloop_list_units",
+        read_only: true,
         description: "List all units in DoorLoop. Optionally filter by property ID. Returns unit name, status, rent, and lease status.",
         input_schema: {
           properties: {

@@ -17,8 +17,9 @@ module DoorLoopApp
       method_option :http, type: :boolean, default: false, desc: "Listen on HTTP instead of stdio"
       method_option :port, type: :numeric, default: DoorLoopApp::Server::DEFAULT_HTTP_PORT,
         desc: "HTTP port (default: #{DoorLoopApp::Server::DEFAULT_HTTP_PORT})"
+      method_option :host, type: :string, default: "127.0.0.1", desc: "HTTP bind address"
       def server
-        Server.run(http: options[:http], port: options[:port])
+        Server.run(http: options[:http], port: options[:port], host: options[:host])
       end
 
       desc "login", "Login to DoorLoop (saves session to Chrome profile)"

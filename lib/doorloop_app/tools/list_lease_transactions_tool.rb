@@ -4,6 +4,7 @@ module DoorLoopApp
   module Tools
     class ListLeaseTransactionsTool < Tool
       tool "doorloop_list_lease_transactions",
+        read_only: true,
         description: "List all transactions for a specific lease in DoorLoop.",
         input_schema: {
           properties: {

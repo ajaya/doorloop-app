@@ -10,7 +10,7 @@ module DoorLoopApp
         config = DoorLoopApp.configuration
         @api_key = api_key || config.anthropic_api_key
         @model = model || config.vision_model
-        @client = Anthropic::Client.new(access_token: @api_key)
+        @client = Anthropic::Client.new(api_key: @api_key)
       end
 
       # Extract structured data from page text (token-efficient, ~800 tokens)
@@ -19,7 +19,8 @@ module DoorLoopApp
         response = @client.messages.create(
           model: @model,
           max_tokens: 4096,
-          system: system_prompt,
+          cache_control: { type: "ephemeral" },
+          system_: system_prompt,
           messages: [{
             role: "user",
             content: "Page text:\n#{page_text}\n\n#{prompt}"
@@ -34,7 +35,8 @@ module DoorLoopApp
         response = @client.messages.create(
           model: @model,
           max_tokens: 4096,
-          system: system_prompt,
+          cache_control: { type: "ephemeral" },
+          system_: system_prompt,
           messages: [{
             role: "user",
             content: [
@@ -59,7 +61,7 @@ module DoorLoopApp
       end
 
       def parse_response(response)
-        text = response.content.first.text
+        text = response.content.select { |block| block.type.to_s == "text" }.map(&:text).join("\n")
         # Strip markdown code fences if present
         text = text.gsub(/```json\s*/, "").gsub(/```\s*/, "").strip
         parsed = JSON.parse(text)

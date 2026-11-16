@@ -104,8 +104,8 @@ DOORLOOP_CONFIRMATION_EMAIL_TO=you@example.com  # enables post-payment email
 # Optional paid Claude AI — disabled by default
 DOORLOOP_ALLOW_PAID_AI=false
 ANTHROPIC_API_KEY=...
-DOORLOOP_LLM_MODEL=claude-haiku-4-5-20251001    # model for tenant fuzzy matching
-DOORLOOP_VISION_MODEL=claude-sonnet-4-20250514  # model for vision page extraction
+DOORLOOP_LLM_MODEL=claude-haiku-5-5    # model for tenant fuzzy matching
+DOORLOOP_VISION_MODEL=claude-sonnet-5-5  # model for vision page extraction
 ```
 
 ## Docker
@@ -153,6 +153,10 @@ The image bundles Ruby 4.0.9, Node.js 22, Debian Chromium, and agent-browser. Da
 - `/data` volume: Chrome profile at `/data/chrome-profile`, SQLite at `/data/doorloop.sqlite3`
 
 ---
+
+## Claude, Codex and MCP transports
+
+See [client setup and protocol support](docs/mcp-clients.md) for current Claude/Codex configuration, stdio, Streamable HTTP, process lifecycle and testing. Both current MCP 2026-07-28 and older handshake-based clients are supported.
 
 ## Usage
 

@@ -4,6 +4,7 @@ module DoorLoopApp
   module Tools
     class ListPropertiesTool < Tool
       tool "doorloop_list_properties",
+        read_only: true,
         description: "List all properties in DoorLoop. Returns property ID, name, address, type, and unit count. Data is cached in local SQLite.",
         input_schema: {
           properties: {

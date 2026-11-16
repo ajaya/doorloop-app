@@ -4,6 +4,7 @@ module DoorLoopApp
   module Tools
     class FindTenantTool < Tool
       tool "doorloop_find_tenant",
+        read_only: true,
         description: "Search for a tenant by name in DoorLoop. Uses local DB with LLM fuzzy matching fallback. Pass refresh: true to sync from DoorLoop first.",
         input_schema: {
           properties: {

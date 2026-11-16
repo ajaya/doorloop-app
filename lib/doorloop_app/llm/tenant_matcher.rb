@@ -1,16 +1,15 @@
 # frozen_string_literal: true
 
-require "ruby_llm"
+require "anthropic"
 require "json"
 
 module DoorLoopApp
   module LLM
     class TenantMatcher
-      DEFAULT_MODEL = "claude-haiku-4-5-20251001"
+      DEFAULT_MODEL = "claude-haiku-5-5"
 
       def initialize(model: nil)
         @model = model || DoorLoopApp.configuration.llm_model
-        configure_ruby_llm
       end
 
       # Given a search query and all tenants, ask LLM to find the best match.
@@ -43,14 +42,14 @@ module DoorLoopApp
       private
 
       def call_llm(prompt)
-        chat = RubyLLM.chat(model: @model)
-        chat.ask(prompt).content.to_s
-      end
-
-      def configure_ruby_llm
-        RubyLLM.configure do |c|
-          c.anthropic_api_key = ENV.fetch("ANTHROPIC_API_KEY", "")
-        end
+        client = Anthropic::Client.new(api_key: DoorLoopApp.configuration.anthropic_api_key)
+        response = client.messages.create(
+          model: @model,
+          max_tokens: 1024,
+          cache_control: { type: "ephemeral" },
+          messages: [{ role: "user", content: prompt }]
+        )
+        response.content.select { |block| block.type.to_s == "text" }.map(&:text).join("\n")
       end
 
       def parse_response(content, tenants)
